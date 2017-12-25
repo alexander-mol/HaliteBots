@@ -18,8 +18,8 @@ while True:
         # initialize ships - 2 builders, 1 hunter
         my_starting_ships = game_map.get_me().all_ships()
         type_table[my_starting_ships[0].id] = 'builder'
-        type_table[my_starting_ships[1].id] = 'builder'
-        type_table[my_starting_ships[2].id] = 'hunter'
+        type_table[my_starting_ships[1].id] = 'hunter'
+        type_table[my_starting_ships[2].id] = 'builder'
 
     command_queue = []
 
@@ -43,11 +43,6 @@ while True:
     docked_enemy_ships = [enemy for enemy in enemy_ships if
                           enemy.docking_status in [hlt.entity.Ship.DockingStatus.DOCKING,
                                                    hlt.entity.Ship.DockingStatus.DOCKED]]
-
-    ship_directory = {}
-    for player in game_map.all_players():
-        for ship in player.all_ships():
-            ship_directory[ship.id] = ship
 
     all_planets = game_map.all_planets()
     non_full_friendly_planets = [planet for planet in all_planets if
@@ -81,8 +76,8 @@ while True:
                 target = bot_utils.get_closest(ship, docked_enemy_ships_full)
                 orders[ship] = target
             else:
-                # just wait
-                pass
+                target = bot_utils.get_closest(ship, enemy_ships)
+                orders[ship] = target
 
     # create abbreviated order dict for logging
     logging_orders = {}
