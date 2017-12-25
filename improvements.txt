@@ -2,3 +2,8 @@ Hunter-builder
 
 - Avoid early crashes
 - Enemies that are attacking our docked ships should be attacked by the nearest hunters
+
+
+New type:
+- The deadly stream - >>>>>>, first ship is a bit slower, so the stream can form - then it can snake around and kill
+    effectively

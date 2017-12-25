@@ -17,9 +17,9 @@ while True:
     if t == 0:
         # initialize ships - 2 builders, 1 hunter
         my_starting_ships = game_map.get_me().all_ships()
-        type_table[my_starting_ships[0].id] = 'builder'
+        type_table[my_starting_ships[0].id] = 'hunter'
         type_table[my_starting_ships[1].id] = 'builder'
-        type_table[my_starting_ships[2].id] = 'hunter'
+        type_table[my_starting_ships[2].id] = 'builder'
 
     command_queue = []
 
