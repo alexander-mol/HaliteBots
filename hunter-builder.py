@@ -8,12 +8,19 @@ game = hlt.Game("Hunter-Builder")
 logging.info("Starting my Settler bot!")
 
 type_table = {}  # e.g. id -> string
-hunter_targets = {}  # e.g. id -> enemy ships by id
-builder_targets = {}  # e.g. id -> planets by id
 
 t = 0
 while True:
+    logging.info(f't = {t}')
     game_map = game.update_map()
+
+    if t == 0:
+        # initialize ships - 2 builders, 1 hunter
+        my_starting_ships = game_map.get_me().all_ships()
+        type_table[my_starting_ships[0].id] = 'builder'
+        type_table[my_starting_ships[1].id] = 'builder'
+        type_table[my_starting_ships[2].id] = 'hunter'
+
     command_queue = []
 
     # update type table
@@ -21,25 +28,16 @@ while True:
                          ship.docking_status == hlt.entity.Ship.DockingStatus.UNDOCKED]
     all_my_ship_ids = [ship.id for ship in game_map.get_me().all_ships()]
     logging.info(f'all_my_ship_ids: {all_my_ship_ids}')
-    logging.info(f'type_table before updates: {type_table}')
     # remove dead guys
     for ship_id in list(type_table.keys()):
         if ship_id not in all_my_ship_ids:
             del type_table[ship_id]
-            try:
-                del hunter_targets[ship_id]
-            except:
-                pass
-            try:
-                del builder_targets[ship_id]
-            except:
-                pass
     # add new guys
     for ship in my_fighting_ships:
         if ship.id not in type_table:
             type_table[ship.id] = random.choice(['hunter', 'builder'])
 
-    logging.info(f'type_table after: {type_table}')
+    logging.info(f'type_table: {type_table}')
     # collect map information
     enemy_ships = bot_utils.get_all_enemy_ships(game_map)
     docked_enemy_ships = [enemy for enemy in enemy_ships if
@@ -59,75 +57,38 @@ while True:
         for _ in range(planet.num_docking_spots):
             dockable_spots_list.append(planet)
 
-    # remove already scheduled dockspots
-    taken_ids = list(builder_targets.values())
-    for taken_id in taken_ids:
-        found = False
-        for i in range(len(dockable_spots_list)):
-            if dockable_spots_list[i].id == taken_id:
-                dockable_spots_list.remove(dockable_spots_list[i])
-                found = True
-                break
-        if not found:
-            # if a previously scheduled dock spot is no longer available - remove the order
-            for ship_id in list(builder_targets.keys()):
-                if builder_targets[ship_id] == taken_id:
-                    del builder_targets[ship_id]
-
-    # remove already scheduled enemy ships
-    # taken_ids = list(hunter_targets.values())
-    # for taken_id in taken_ids:
-    #     found = False
-    #     for i in range(len(docked_enemy_ships)):
-    #         if docked_enemy_ships[i].id == taken_id:
-    #             docked_enemy_ships.remove(docked_enemy_ships[i])
-    #             found = True
-    #             break
-    #     if not found:
-    #         # if a previously scheduled enemy spot is no longer available - remove the order
-    #         for ship_id in list(hunter_targets.keys()):
-    #             if hunter_targets[ship_id] == taken_id:
-    #                 del hunter_targets[ship_id]
-
     # need to assign targets here so that if the dockable spots list becomes empty we can then assign guys to be hunters
     orders = {}
     for ship in my_fighting_ships:
         ship_type = type_table[ship.id]
         if ship_type == 'builder':
-            if ship.id in builder_targets:
-                target_id = builder_targets[ship.id]
-                target = game_map.get_planet(target_id)
+            if len(dockable_spots_list) > 0:
+                target = bot_utils.pop_closest(ship, dockable_spots_list)
                 orders[ship] = target
             else:
-                if len(dockable_spots_list) > 0:
-                    target = bot_utils.pop_closest(ship, dockable_spots_list)
-                    builder_targets[ship.id] = target.id
-                    orders[ship] = target
-                else:
-                    # make this ship a hunter
-                    type_table[ship.id] = 'hunter'
+                # make this ship a hunter
+                type_table[ship.id] = 'hunter'
 
     # handle orders for hunters here
     docked_enemy_ships_full = copy.copy(docked_enemy_ships)
     for ship in my_fighting_ships:
         ship_type = type_table[ship.id]
         if ship_type == 'hunter':
-            # if ship.id in hunter_targets:
-            #     target_id = hunter_targets[ship.id]
-            #     target = ship_directory[target_id]
-            #     orders[ship] = target
-            # else:
             if len(docked_enemy_ships) > 0:
                 target = bot_utils.pop_closest(ship, docked_enemy_ships)
-                hunter_targets[ship.id] = target.id
                 orders[ship] = target
             elif len(docked_enemy_ships_full) > 0:
                 target = bot_utils.get_closest(ship, docked_enemy_ships_full)
-                hunter_targets[ship.id] = target.id
                 orders[ship] = target
             else:
                 # just wait
                 pass
+
+    # create abbreviated order dict for logging
+    logging_orders = {}
+    for ship, order in orders.items():
+        logging_orders[ship.id] = f'S{order.id}' if isinstance(order, hlt.entity.Ship) else f'P{order.id}'
+    logging.info(f'orders: {logging_orders}')
 
     for ship in orders:
         command = None
@@ -144,9 +105,10 @@ while True:
                     ignore_ships=False)
         elif ship_type == 'hunter':
             command = ship.navigate(
-                ship.closest_point_to(target, min_distance=2),
+                ship.closest_point_to(target, min_distance=4),
                 game_map,
                 speed=int(hlt.constants.MAX_SPEED),
+                angular_step=2,
                 ignore_ships=False)
 
         if command:
