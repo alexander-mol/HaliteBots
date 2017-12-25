@@ -1,8 +1,4 @@
 Hunter-builder
 
-- At start always 2 builders, 1 hunter
-- Clean up the code
-    - especially use of hunter-targets
-    - bot_utils
-    - can we avoid early death?
-- try to find the strongest starting combo - maybe it is builder, hunter, builder?
+- Avoid early crashes
+- Enemies that are attacking our docked ships should be attacked by the nearest hunters
