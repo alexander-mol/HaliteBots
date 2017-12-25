@@ -1,0 +1,6 @@
+Hunter-builder
+
+- At start always 2 builders, 1 hunter
+- Clean up the code
+    - especially use of hunter-targets
+    - bot_utils
