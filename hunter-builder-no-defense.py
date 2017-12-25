@@ -4,17 +4,15 @@ import logging
 import random
 import copy
 
-game = hlt.Game("Hunter-Builder")
-
-# parameters
-defensive_action_radius = 14
+game = hlt.Game("Hunter-Builder-no-defense")
+logging.info("Starting my Settler bot!")
 
 type_table = {}  # e.g. id -> string
 
 t = 0
 while True:
-    game_map = game.update_map()
     logging.info(f't = {t}')
+    game_map = game.update_map()
 
     if t == 0:
         # initialize ships - 2 builders, 1 hunter
@@ -46,17 +44,6 @@ while True:
                           enemy.docking_status in [hlt.entity.Ship.DockingStatus.DOCKING,
                                                    hlt.entity.Ship.DockingStatus.DOCKED]]
 
-    my_docked_ships = [ship for ship in game_map.get_me().all_ships() if
-                       ship.docking_status in [hlt.entity.Ship.DockingStatus.DOCKED,
-                                               hlt.entity.Ship.DockingStatus.DOCKING]]
-
-    my_docked_ships_under_attack = [ship for ship in my_docked_ships if bot_utils.is_under_attack(game_map, ship)]
-    belligerent_enemies = [e for ship in my_docked_ships_under_attack for e in bot_utils.get_attackers(game_map, ship)]
-    if len(my_docked_ships_under_attack) > 0:
-        logging.info(f'Docked ships {[ship.id for ship in my_docked_ships_under_attack]} are being attacked!')
-        logging.info(f'The attackers are: {[ship.id for ship in belligerent_enemies]}')
-
-
     all_planets = game_map.all_planets()
     non_full_friendly_planets = [planet for planet in all_planets if
                                  planet.owner in [None, game_map.get_me()] and not planet.is_full()]
@@ -78,11 +65,8 @@ while True:
                 type_table[ship.id] = 'hunter'
 
     # handle orders for hunters here
-    # usual hunting tactics
     docked_enemy_ships_full = copy.copy(docked_enemy_ships)
     for ship in my_fighting_ships:
-        if ship in orders:
-            continue
         ship_type = type_table[ship.id]
         if ship_type == 'hunter':
             if len(docked_enemy_ships) > 0:
@@ -94,16 +78,6 @@ while True:
             else:
                 target = bot_utils.get_closest(ship, enemy_ships)
                 orders[ship] = target
-
-    # special case - docked ships under attack
-    if len(belligerent_enemies) > 0:
-        my_hunters = [ship for ship in my_fighting_ships if type_table[ship.id] == 'hunter']
-        for enemy in belligerent_enemies:
-            if len(my_hunters) > 0:
-                closest_hunter = bot_utils.get_closest(enemy, my_hunters)
-                if closest_hunter.calculate_distance_between(enemy) < defensive_action_radius:
-                    orders[closest_hunter] = enemy
-                    my_hunters.remove(closest_hunter)
 
     # create abbreviated order dict for logging
     logging_orders = {}
