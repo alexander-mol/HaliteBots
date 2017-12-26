@@ -7,3 +7,11 @@ Hunter-builder
 New type:
 - The deadly stream - >>>>>>, first ship is a bit slower, so the stream can form - then it can snake around and kill
     effectively
+
+Make a super aggressive guy to test against as well - 3 hunters
+
+Interceptors need to use swarm tactics! - Hunters too.
+
+Zones of defense around planets
+
+Generate defense on the fly
