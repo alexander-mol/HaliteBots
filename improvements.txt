@@ -6,10 +6,11 @@ Make a super aggressive guy to test against as well - 3 hunters
 Need more thought:
 - Make the ships go to the same planet at the start (faster generation of new guy)
 - A* search to find shortest paths
-- Can fly in formations when attacking - create a Formation entity which is made up of ships and has a radius etc. so static - can move in unison - needs to define the 'target locations' of ships inside the formation depending on size
+- Can fly in formations when attacking - create a Formation entity which is made up of ships and has a radius etc. so
+    static - can move in unison - needs to define the 'target locations' of ships inside the formation depending on
+    size - can spontaneously create when ships are close anyways
 - Really try to intercept - predict path and make an isosceles triangle
 - Fail safe against super aggressive opponents (if they attack with 3 ships at the start...)
+- If ship is outnumbered by attackers it should seek safety - or kamikaze
 
 Ready to implement:
-- Allocate jobs more efficiently - connect the two closest, remove, repeat -> not a super big improvement ~10% distance reduction (and high computation cost - can use numpy though)
-- Interceptor predictive enemy-targeting

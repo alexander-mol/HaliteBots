@@ -5,12 +5,15 @@ import random
 import copy
 import time
 
-game = hlt.Game("Interceptor")
+game = hlt.Game("Interceptor-augmented")
 
 # parameters
 defensive_action_radius = 40  # radius around a planet within which interceptors will attack enemies (also longest distance interceptor will travel to intercept)
 max_response = 4  # maximum number of interceptors per enemy
-safe_docking_distance = 60  # minimum 'safe' distance from a planet to the nearest enemy planet
+safe_docking_distance = 60  # minimum 'safe' distance from a planet to the nearest enemy
+
+approach_dist = 2  # 'closest point to' offset
+padding = 1  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
 
 type_table = {}  # e.g. id -> string
 enemy_tracking = {}
@@ -47,7 +50,7 @@ while True:
         if enemy_id in enemy_tracking:
             enemy_location_prediction[enemy_id] = (2 * enemy_tracking_new[enemy_id] - enemy_tracking[enemy_id])
     enemy_tracking = enemy_tracking_new
-    logging.info(f'Time used for enemy ship tracking: {timer.get_time()}')
+    logging.info(f'Time used for enemy ship tracking: {timer.get_time()} ms')
 
     planet_defense_radii = [planet.radius + defensive_action_radius for planet in my_planets]
     proximal_enemy_ships = bot_utils.get_proximity_alerts(my_planets, planet_defense_radii, enemy_ships)
@@ -111,19 +114,33 @@ while True:
                     proximal_enemy_ships.remove(enemy)
 
     # the rest can build or hunt good opportunities
+    temp_alloc = {}
+    # temporary - for comparison purposes:
+    good_opportunities_copy = copy.deepcopy(good_opportunities)
     for ship in my_fighting_ships:
         if ship not in orders:
-            if len(good_opportunities) > 0:
-                closest_opportunity = bot_utils.pop_closest(ship, good_opportunities)
-                orders[ship] = closest_opportunity
-            else:
-                enemy = bot_utils.get_closest(ship, enemy_ships)
-                orders[ship] = enemy
+            if len(good_opportunities_copy) > 0:
+                closest_opportunity = bot_utils.pop_closest(ship, good_opportunities_copy)
+                temp_alloc[ship] = closest_opportunity
 
-    for ship, target in list(orders.items()):
-        if isinstance(target, hlt.entity.Ship):
-            if target.id in enemy_location_prediction:
-                orders[ship] = enemy_location_prediction[target.id]
+    minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_fighting_ships, good_opportunities)
+
+    def total_dist(alloc):
+        dist = 0
+        for ship, target in alloc.items():
+            dist += ship.calculate_distance_between(target)
+        return dist
+
+    logging.info(f'Total dist using old system: {total_dist(temp_alloc)}, len: {len(temp_alloc)}')
+    logging.info(f'Total dist using new system: {total_dist(minimal_dist_alloc)}, len: {len(minimal_dist_alloc)}')
+
+    logging.info(f'Time to calculate minimal distance job allocation: {timer.get_time()} ms')
+    for ship in my_fighting_ships:
+        if ship in minimal_dist_alloc:
+            orders[ship] = minimal_dist_alloc[ship]
+        else:
+            enemy = bot_utils.get_closest(ship, enemy_ships)
+            orders[ship] = enemy
 
     # create abbreviated order dict for logging
     logging_orders = {}
@@ -131,17 +148,22 @@ while True:
         logging_orders[ship.id] = f'S{order.id}' if isinstance(order, hlt.entity.Ship) else f'P{order.id}'
     logging.info(f'orders: {logging_orders}')
 
+    for ship, target in list(orders.items()):
+        if isinstance(target, hlt.entity.Ship):
+            if target.id in enemy_location_prediction:
+                orders[ship] = enemy_location_prediction[target.id]
+
     for ship in orders:
         if isinstance(orders[ship], hlt.entity.Planet) and ship.can_dock(orders[ship]):
             command_queue.append(ship.dock(orders[ship]))
         else:
             command = ship.smart_navigate(
-                ship.closest_point_to(orders[ship], min_distance=2),
+                ship.closest_point_to(orders[ship], min_distance=approach_dist),
                 game_map,
                 hlt.constants.MAX_SPEED,
-                angular_step=5,
+                angular_step=angular_step,
                 max_corrections=max_corrections,
-                padding=1)
+                padding=padding)
             if command:
                 command_queue.append(command)
 
