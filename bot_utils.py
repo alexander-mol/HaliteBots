@@ -133,6 +133,24 @@ def total_dist(alloc):
         dist += ship.calculate_distance_between(target)
     return dist
 
+def get_central_point(points):
+    c = hlt.entity.Position(0, 0)
+    for point in points:
+        c += point
+    c /= len(points)
+    return get_closest(c, points)
+
+def get_order_string(order):
+    prefix = None
+    if isinstance(order, hlt.entity.Ship):
+        prefix = 'S'
+    elif isinstance(order, hlt.entity.Planet):
+        prefix = 'P'
+    elif isinstance(order, hlt.entity.FormationSpot):
+        prefix = 'F'
+    return f'{prefix}{order.id}'
+
+
 
 class Timer:
     def __init__(self):

@@ -5,21 +5,22 @@ import random
 import copy
 import time
 
-game = hlt.Game("Interceptor-augmented")
+game = hlt.Game("Formation-fighter")
 
 # parameters
 defensive_action_radius = 40  # radius around a planet within which interceptors will attack enemies (also longest distance interceptor will travel to intercept)
 max_response = 4  # maximum number of interceptors per enemy
 safe_docking_distance = 20  # minimum 'safe' distance from a planet to the nearest enemy
 
-approach_dist = 2  # 'closest point to' offset
-padding = 1  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
+approach_dist = 0.01  # 'closest point to' offset
+padding = 0.01  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
 
 type_table = {}  # e.g. id -> string
 enemy_tracking = {}
 
 angular_step = 5
 max_corrections = int(180 / angular_step) + 1
+formations = []
 
 t = 0
 while True:
@@ -30,20 +31,29 @@ while True:
     command_queue = []
 
     # collect map information
-    my_fighting_ships = [ship for ship in game_map.get_me().all_ships() if
-                         ship.docking_status == hlt.entity.Ship.DockingStatus.UNDOCKED]
-    all_my_ship_ids = [ship.id for ship in game_map.get_me().all_ships()]
-
-    my_planets = [planet for planet in game_map.all_planets() if planet.owner == game_map.get_me()]
     all_planets = game_map.all_planets()
     non_full_friendly_planets = [planet for planet in all_planets if
                                  planet.owner in [None, game_map.get_me()] and not planet.is_full()]
+    # collect my stuff
+    my_fighting_ships = [ship for ship in game_map.get_me().all_ships() if
+                         ship.docking_status == hlt.entity.Ship.DockingStatus.UNDOCKED]
+    all_my_ship_ids = [ship.id for ship in game_map.get_me().all_ships()]
+    my_planets = [planet for planet in game_map.all_planets() if planet.owner == game_map.get_me()]
+
+    # collect enemy stuff
     enemy_planets = [planet for planet in all_planets if planet.owner not in [None, game_map.get_me()]]
     enemy_ships = bot_utils.get_all_enemy_ships(game_map)
     docked_enemy_ships = [enemy for enemy in enemy_ships if
                           enemy.docking_status in [hlt.entity.Ship.DockingStatus.DOCKING,
                                                    hlt.entity.Ship.DockingStatus.DOCKED]]
 
+    # find attacking enemies
+    planet_defense_radii = [planet.radius + defensive_action_radius for planet in my_planets]
+    proximal_enemy_ships = bot_utils.get_proximity_alerts(my_planets, planet_defense_radii, enemy_ships)
+    if len(proximal_enemy_ships) > 0:
+        logging.info(f'Enemy ships nearby: {[ship.id for ship in proximal_enemy_ships]}')
+
+    # update enemy trajectory tracking
     enemy_tracking_new = {enemy.id: hlt.entity.Position(enemy.x, enemy.y) for enemy in enemy_ships}
     enemy_location_prediction = {}
     for enemy_id in enemy_tracking_new:
@@ -52,12 +62,7 @@ while True:
     enemy_tracking = enemy_tracking_new
     logging.info(f'Time used for enemy ship tracking: {timer.get_time()} ms')
 
-    planet_defense_radii = [planet.radius + defensive_action_radius for planet in my_planets]
-    proximal_enemy_ships = bot_utils.get_proximity_alerts(my_planets, planet_defense_radii, enemy_ships)
-
-    if len(proximal_enemy_ships) > 0:
-        logging.info(f'Enemy ships nearby: {[ship.id for ship in proximal_enemy_ships]}')
-
+    # find good dock spots
     good_to_dock_planets = \
         [planet for planet in non_full_friendly_planets
          if bot_utils.get_proximity(planet, enemy_ships) > safe_docking_distance + planet.radius
@@ -83,8 +88,6 @@ while True:
         for _ in range(planet.num_docking_spots - len(planet.all_docked_ships())):
             other_dock_spots.append(planet)
 
-    good_opportunities = docked_enemy_ships + good_dock_spots
-
     # update type table
     logging.info(f'all_my_ship_ids: {all_my_ship_ids}')
     # remove dead guys
@@ -98,37 +101,41 @@ while True:
 
     logging.info(f'type_table: {type_table}')
 
+    # formation handling
+    for formation in formations:
+        formation.update(my_fighting_ships)
+        for ship in formation.ships:
+            my_fighting_ships.remove(ship)
+
+    if len(formations) == 0 and len(my_fighting_ships) > 7:
+        central_ship = bot_utils.get_central_point(my_fighting_ships)
+        formations.append(hlt.entity.Formation(central_ship))
+        my_fighting_ships.remove(central_ship)
+
+    available_formation_spots = []
+    for formation in formations:
+        available_formation_spots.extend(formation.available_spots)
+
+    good_opportunities = good_dock_spots + available_formation_spots
+
+    # intercept attackers
     interceptors = {enemy: [] for enemy in proximal_enemy_ships}
     # can also join all action lists (dock spots and proximal enemies) and then let each ship do the closest action
     orders = {}
-    # attack any proximal enemies
-    for ship in copy.copy(my_fighting_ships):
-        if len(proximal_enemy_ships) > 0:
-            enemy = bot_utils.get_closest(ship, proximal_enemy_ships)
-            if ship.calculate_distance_between(enemy) < defensive_action_radius \
-                    and len(interceptors[enemy]) < max_response:
-                orders[ship] = enemy
-                interceptors[enemy].append(ship)
-                my_fighting_ships.remove(ship)
-                if len(interceptors[enemy]) >= max_response:
-                    proximal_enemy_ships.remove(enemy)
+    # # attack any proximal enemies
+    # for ship in copy.copy(my_fighting_ships):
+    #     if len(proximal_enemy_ships) > 0:
+    #         enemy = bot_utils.get_closest(ship, proximal_enemy_ships)
+    #         if ship.calculate_distance_between(enemy) < defensive_action_radius \
+    #                 and len(interceptors[enemy]) < max_response:
+    #             orders[ship] = enemy
+    #             interceptors[enemy].append(ship)
+    #             my_fighting_ships.remove(ship)
+    #             if len(interceptors[enemy]) >= max_response:
+    #                 proximal_enemy_ships.remove(enemy)
 
-    # the rest can build or hunt good opportunities
-    temp_alloc = {}
-    # temporary - for comparison purposes:
-    good_opportunities_copy = copy.deepcopy(good_opportunities)
-    for ship in my_fighting_ships:
-        if ship not in orders:
-            if len(good_opportunities_copy) > 0:
-                closest_opportunity = bot_utils.pop_closest(ship, good_opportunities_copy)
-                temp_alloc[ship] = closest_opportunity
 
     minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_fighting_ships, good_opportunities)
-
-    logging.info(f'Total dist using old system: {round(bot_utils.total_dist(temp_alloc), 0)}, '
-                 f'len: {len(temp_alloc)}')
-    logging.info(f'Total dist using new system: {round(bot_utils.total_dist(minimal_dist_alloc), 0)}, '
-                 f'len: {len(minimal_dist_alloc)}')
 
     logging.info(f'Time to calculate minimal distance job allocation: {timer.get_time()} ms')
     for ship in my_fighting_ships:
@@ -141,7 +148,7 @@ while True:
     # create abbreviated order dict for logging
     logging_orders = {}
     for ship, order in orders.items():
-        logging_orders[ship.id] = f'S{order.id}' if isinstance(order, hlt.entity.Ship) else f'P{order.id}'
+        logging_orders[ship.id] = bot_utils.get_order_string(order)
     logging.info(f'orders: {logging_orders}')
 
     for ship, target in list(orders.items()):
@@ -149,9 +156,17 @@ while True:
             if target.id in enemy_location_prediction:
                 orders[ship] = enemy_location_prediction[target.id]
 
+    corner = hlt.entity.Position(game_map.width, game_map.height)
+    if len(formations) > 0:
+        command = formations[0].smart_navigate(corner, game_map, hlt.constants.MAX_SPEED/3)
+        if command:
+            command_queue.append(command)
+
     for ship in orders:
         if isinstance(orders[ship], hlt.entity.Planet) and ship.can_dock(orders[ship]):
             command_queue.append(ship.dock(orders[ship]))
+        elif isinstance(orders[ship], hlt.entity.FormationSpot) and orders[ship].can_add(ship):
+            orders[ship].add(ship)
         else:
             command = ship.smart_navigate(
                 ship.closest_point_to(orders[ship], min_distance=approach_dist),
@@ -170,6 +185,8 @@ while True:
         angular_step = min(angular_step + 5, 45)
         max_corrections = int(180 / angular_step) + 1
         logging.info(f'Increased angular step to {angular_step}, with max corrections {max_corrections}')
+
+    logging.info(f'command_queue {command_queue}')
 
     # Send our set of commands to the Halite engine for this turn
     game.send_command_queue(command_queue)

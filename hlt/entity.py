@@ -3,6 +3,7 @@ import abc
 import math
 from enum import Enum
 from . import constants
+import bot_utils
 
 
 class Entity:
@@ -307,15 +308,26 @@ class Ship(Entity):
         speed = speed if (distance >= speed) else distance
         return self.thrust(speed, angle)
 
-    def smart_navigate(self, target, game_map, speed, max_corrections=90, angular_step=1, padding=0.1):
+    def smart_navigate(self, target, game_map, speed, max_corrections=90, angular_step=1, padding=0.1,
+                       ignore_formations=False):
         # Assumes a position, not planet (as it would go to the center of the planet otherwise)
+        if ignore_formations:
+            return self.thrust(speed, 0)
+        if ignore_formations:
+            logging.info(f'Navigate coverage -----------')
+            logging.info(f'{max_corrections}')
         if max_corrections <= 0:
             return None
         distance = self.calculate_distance_between(target)
         straight_angle = self.calculate_angle_between(target)
-        ignore = ()
+        ignore = () if not ignore_formations else Ship
         angle_r = self.get_angle(target, game_map, max_corrections, angular_step, padding, ignore)
         angle_l = self.get_angle(target, game_map, max_corrections, -angular_step, padding, ignore)
+
+        if ignore_formations:
+            logging.info(f'{angle_r}')
+        if ignore_formations:
+            logging.info(f'{angle_l}')
 
         speed = speed if (distance >= speed) else distance
 
@@ -409,6 +421,85 @@ class Ship(Entity):
         return ships, remainder
 
 
+class Formation(Ship):
+
+    def __init__(self, ship):
+        self.core_ship = ship
+        self.id = ship.id
+        self.x = ship.x
+        self.y = ship.y
+        self.ships = [ship]
+        self._unit_radius = 1
+        self.radius = 1 # self._unit_radius * 3
+        self.available_spots = self.get_spots()
+
+    def update(self, my_ships):
+        all_ship_ids = [ship for ship in my_ships]
+        for ship in self.ships:
+            if ship.id not in all_ship_ids:
+                self.ships.remove(ship)
+        self.available_spots = self.get_spots()
+        for ship in self.ships:
+            bot_utils.pop_closest(ship, self.available_spots)
+
+    def thrust(self, magnitude, angle):
+        command = ''
+        for ship in self.ships:
+            command += ship.thrust(magnitude, angle)
+        logging.info('-----------------------------------------------------------------')
+        logging.info(self.ships)
+        logging.info(command)
+        logging.info('-----------------------------------------------------------------')
+        return command
+
+    def smart_navigate(self, target, game_map, speed, max_corrections=90, angular_step=1, padding=0.1,
+                       ignore_formations=True):
+        # Assumes a position, not planet (as it would go to the center of the planet otherwise)
+        if ignore_formations:
+            return self.thrust(speed, 0)
+        if ignore_formations:
+            logging.info(f'Navigate coverage -----------')
+            logging.info(f'{max_corrections}')
+        if max_corrections <= 0:
+            return None
+        distance = self.calculate_distance_between(target)
+        straight_angle = self.calculate_angle_between(target)
+        ignore = () if not ignore_formations else Ship
+        angle_r = self.get_angle(target, game_map, max_corrections, angular_step, padding, ignore)
+        angle_l = self.get_angle(target, game_map, max_corrections, -angular_step, padding, ignore)
+
+        if ignore_formations:
+            logging.info(f'{angle_r}')
+        if ignore_formations:
+            logging.info(f'{angle_l}')
+
+        speed = speed if (distance >= speed) else distance
+
+        if angle_l is None and angle_r is None:
+            return None
+        elif angle_l is None:
+            return self.thrust(speed, angle_r)
+        elif angle_r is None:
+            return self.thrust(speed, angle_l)
+
+        if (straight_angle - angle_l) % 360 < (angle_r - straight_angle) % 360:
+            angle = angle_l
+        else:
+            angle = angle_r
+        return self.thrust(speed, angle)
+
+    def get_spots(self):
+        basic_spots = [(2, 0), (1, -1), (-1, -1), (-2, 0), (-1, 1), (1, 1)]
+        actual_spots = []
+        for spot in basic_spots:
+            actual_spots.append(
+                FormationSpot(self, spot[0] * self._unit_radius + self.x, spot[1] * self._unit_radius + self.y))
+        return actual_spots
+
+    def get_join_spot(self, ship):
+        return bot_utils.get_closest(ship, self.available_spots)
+
+
 class Position(Entity):
     """
     A simple wrapper for a coordinate. Intended to be passed to some functions in place of a ship or planet.
@@ -446,3 +537,22 @@ class Position(Entity):
 
     def _link(self, players, planets):
         raise NotImplementedError("Position should not have link attributes.")
+
+
+class FormationSpot(Position):
+
+    def __init__(self, mother_formation, x, y):
+        super().__init__(x, y)
+        self.mother_formation = mother_formation
+        self.id = mother_formation.id
+
+    def can_add(self, ship):
+        for spot in self.mother_formation.get_spots():
+            if ship.calculate_distance_between(spot) < self.mother_formation._unit_radius - ship.radius:
+                return True
+        return False
+
+    def add(self, ship):
+        for spot in self.mother_formation.get_spots():
+            if ship.calculate_distance_between(spot) < self.mother_formation._unit_radius - ship.radius:
+                self.mother_formation.ships.append(ship)
