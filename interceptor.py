@@ -15,6 +15,9 @@ safe_docking_distance = 50  # minimum 'safe' distance from a planet to the neare
 type_table = {}  # e.g. id -> string
 enemy_tracking = {}
 
+angular_step = 5
+max_corrections = int(180 / angular_step) + 1
+
 t = 0
 while True:
     game_map = game.update_map()
@@ -40,13 +43,19 @@ while True:
                           enemy.docking_status in [hlt.entity.Ship.DockingStatus.DOCKING,
                                                    hlt.entity.Ship.DockingStatus.DOCKED]]
 
-    proximal_enemy_ships = bot_utils.get_proximity_alerts(my_planets, enemy_ships, defensive_action_radius)
+    planet_defense_radii = [planet.radius + defensive_action_radius for planet in my_planets]
+    proximal_enemy_ships = bot_utils.get_proximity_alerts(my_planets, planet_defense_radii, enemy_ships)
 
     if len(proximal_enemy_ships) > 0:
         logging.info(f'Enemy ships nearby: {[ship.id for ship in proximal_enemy_ships]}')
 
-    good_to_dock_planets = [planet for planet in non_full_friendly_planets
-                            if bot_utils.get_proximity(planet, enemy_planets) > safe_docking_distance]
+    good_to_dock_planets = \
+        [planet for planet in non_full_friendly_planets
+         if bot_utils.get_proximity(planet, enemy_ships) > safe_docking_distance + planet.radius
+         or planet.owner == game_map.get_me()
+         or len(bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius], my_fighting_ships + my_planets))
+         > 2 * len(bot_utils.get_proximity_alerts([planet], [safe_docking_distance + planet.radius], enemy_ships))]
+
     other_dockable_planets = [planet for planet in non_full_friendly_planets if planet not in good_to_dock_planets]
 
     good_dock_spots = []
@@ -77,7 +86,7 @@ while True:
     # can also join all action lists (dock spots and proximal enemies) and then let each ship do the closest action
     orders = {}
     # attack any proximal enemies
-    for ship in my_fighting_ships:
+    for ship in copy.copy(my_fighting_ships):
         if len(proximal_enemy_ships) > 0:
             enemy = bot_utils.get_closest(ship, proximal_enemy_ships)
             if ship.calculate_distance_between(enemy) < defensive_action_radius \
@@ -98,6 +107,12 @@ while True:
                 enemy = bot_utils.get_closest(ship, enemy_ships)
                 orders[ship] = enemy
 
+    # create abbreviated order dict for logging
+    logging_orders = {}
+    for ship, order in orders.items():
+        logging_orders[ship.id] = f'S{order.id}' if isinstance(order, hlt.entity.Ship) else f'P{order.id}'
+    logging.info(f'orders: {logging_orders}')
+
     for ship in orders:
         if isinstance(orders[ship], hlt.entity.Planet) and ship.can_dock(orders[ship]):
             command_queue.append(ship.dock(orders[ship]))
@@ -106,13 +121,18 @@ while True:
                 ship.closest_point_to(orders[ship], min_distance=2),
                 game_map,
                 hlt.constants.MAX_SPEED,
-                angular_step=20)
+                angular_step=5,
+                max_corrections=max_corrections)
             if command:
                 command_queue.append(command)
 
     delta_time = timer.get_time()
     logging.info(f'Time to calculate trajectories: {delta_time} ms,'
-                 f'time per ship: {delta_time / (len(my_fighting_ships)+1)} ms')
+                 f'time per ship: {round(delta_time / (len(my_fighting_ships)+1), 0)} ms')
+    if delta_time > 1000:
+        angular_step += 5
+        max_corrections = int(180 / angular_step) + 1
+        logging.info(f'Increased angular step to {angular_step}, with max corrections {max_corrections}')
 
     # Send our set of commands to the Halite engine for this turn
     game.send_command_queue(command_queue)
