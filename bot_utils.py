@@ -127,6 +127,12 @@ def get_coordinate_arrays(entities):
     ys = np.array([entity.y for entity in entities])
     return xs, ys
 
+def total_dist(alloc):
+    dist = 0
+    for ship, target in alloc.items():
+        dist += ship.calculate_distance_between(target)
+    return dist
+
 
 class Timer:
     def __init__(self):

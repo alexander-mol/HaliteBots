@@ -125,14 +125,10 @@ while True:
 
     minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_fighting_ships, good_opportunities)
 
-    def total_dist(alloc):
-        dist = 0
-        for ship, target in alloc.items():
-            dist += ship.calculate_distance_between(target)
-        return dist
-
-    logging.info(f'Total dist using old system: {total_dist(temp_alloc)}, len: {len(temp_alloc)}')
-    logging.info(f'Total dist using new system: {total_dist(minimal_dist_alloc)}, len: {len(minimal_dist_alloc)}')
+    logging.info(f'Total dist using old system: {round(bot_utils.total_dist(temp_alloc), 0)}, '
+                 f'len: {len(temp_alloc)}')
+    logging.info(f'Total dist using new system: {round(bot_utils.total_dist(minimal_dist_alloc), 0)}, '
+                 f'len: {len(minimal_dist_alloc)}')
 
     logging.info(f'Time to calculate minimal distance job allocation: {timer.get_time()} ms')
     for ship in my_fighting_ships:
