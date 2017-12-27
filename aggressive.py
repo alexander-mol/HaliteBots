@@ -4,7 +4,7 @@ import logging
 import random
 import copy
 
-game = hlt.Game("Hunter-Builder")
+game = hlt.Game("Aggressive-Hunter")
 
 # parameters
 defensive_action_radius = 14
@@ -20,8 +20,8 @@ while True:
         # initialize ships - 2 builders, 1 hunter
         my_starting_ships = game_map.get_me().all_ships()
         type_table[my_starting_ships[0].id] = 'hunter'
-        type_table[my_starting_ships[1].id] = 'builder'
-        type_table[my_starting_ships[2].id] = 'builder'
+        type_table[my_starting_ships[1].id] = 'hunter'
+        type_table[my_starting_ships[2].id] = 'hunter'
 
     command_queue = []
 
@@ -123,16 +123,13 @@ while True:
                     ship.closest_point_to(target),
                     game_map,
                     speed=int(hlt.constants.MAX_SPEED),
-                    angular_step=5,
-                    max_corrections=37,
                     ignore_ships=False)
         elif ship_type == 'hunter':
             command = ship.navigate(
                 ship.closest_point_to(target, min_distance=4),
                 game_map,
                 speed=int(hlt.constants.MAX_SPEED),
-                angular_step=5,
-                max_corrections=37,
+                angular_step=2,
                 ignore_ships=False)
 
         if command:

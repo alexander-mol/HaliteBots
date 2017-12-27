@@ -4,7 +4,6 @@ Make a super aggressive guy to test against as well - 3 hunters
 
 
 Need more thought:
-- Avoid early crashes - bigger radius in check obstacles?
 - Make the ships go to the same planet at the start (faster generation of new guy)
 - A* search to find shortest paths
 - Can fly in formations when attacking - create a Formation entity which is made up of ships and has a radius etc. so static - can move in unison - needs to define the 'target locations' of ships inside the formation depending on size
@@ -12,7 +11,5 @@ Need more thought:
 - Fail safe against super aggressive opponents (if they attack with 3 ships at the start...)
 
 Ready to implement:
-- 'Good' dock spots needs to depend on proximity of enemies (including not yet created) and friendlies, not proximity of enemy planets
-- Zone of defense around a planet needs to be 'beyond' radius of planet
-- Implement some rudimentary calculation speed throttling - angular step increases whenever time > 1000 ms
 - Allocate jobs more efficiently - connect the two closest, remove, repeat -> not a super big improvement ~10% distance reduction (and high computation cost - can use numpy though)
+- Interceptor predictive enemy-targeting

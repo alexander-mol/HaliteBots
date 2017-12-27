@@ -10,7 +10,7 @@ game = hlt.Game("Interceptor")
 # parameters
 defensive_action_radius = 40  # radius around a planet within which interceptors will attack enemies (also longest distance interceptor will travel to intercept)
 max_response = 4  # maximum number of interceptors per enemy
-safe_docking_distance = 50  # minimum 'safe' distance from a planet to the nearest enemy planet
+safe_docking_distance = 60  # minimum 'safe' distance from a planet to the nearest enemy planet
 
 type_table = {}  # e.g. id -> string
 enemy_tracking = {}
@@ -122,7 +122,8 @@ while True:
                 game_map,
                 hlt.constants.MAX_SPEED,
                 angular_step=5,
-                max_corrections=max_corrections)
+                max_corrections=max_corrections,
+                padding=1)
             if command:
                 command_queue.append(command)
 
@@ -130,7 +131,7 @@ while True:
     logging.info(f'Time to calculate trajectories: {delta_time} ms,'
                  f'time per ship: {round(delta_time / (len(my_fighting_ships)+1), 0)} ms')
     if delta_time > 1000:
-        angular_step += 5
+        angular_step = min(angular_step + 5, 45)
         max_corrections = int(180 / angular_step) + 1
         logging.info(f'Increased angular step to {angular_step}, with max corrections {max_corrections}')
 
