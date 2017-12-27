@@ -10,7 +10,7 @@ game = hlt.Game("Interceptor-augmented")
 # parameters
 defensive_action_radius = 40  # radius around a planet within which interceptors will attack enemies (also longest distance interceptor will travel to intercept)
 max_response = 4  # maximum number of interceptors per enemy
-safe_docking_distance = 60  # minimum 'safe' distance from a planet to the nearest enemy
+safe_docking_distance = 20  # minimum 'safe' distance from a planet to the nearest enemy
 
 approach_dist = 2  # 'closest point to' offset
 padding = 1  # standard padding added to obstacle radii (helps to prevent unwanted crashes)

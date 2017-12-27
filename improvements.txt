@@ -13,4 +13,8 @@ Need more thought:
 - Fail safe against super aggressive opponents (if they attack with 3 ships at the start...)
 - If ship is outnumbered by attackers it should seek safety - or kamikaze
 
+- Better routing using A* with graph building - and location prediction to avoid crashing own guys
+    - could pre-analyze the map to create the graph
+
 Ready to implement:
+- also attack with 4 guys per opportunity
