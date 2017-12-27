@@ -429,5 +429,20 @@ class Position(Entity):
         self.owner = None
         self.id = None
 
+    def __add__(self, other):
+        return Position(self.x + other.x, self.y + other.y)
+
+    def __mul__(self, other):
+        return Position(self.x * other, self.y * other)
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __truediv__(self, other):
+        return Position(self.x / other, self.y / other)
+
+    def __sub__(self, other):
+        return Position(self.x - other.x, self.y - other.y)
+
     def _link(self, players, planets):
         raise NotImplementedError("Position should not have link attributes.")

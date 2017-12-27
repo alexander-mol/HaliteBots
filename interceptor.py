@@ -26,7 +26,7 @@ while True:
 
     command_queue = []
 
-    # update type table
+    # collect map information
     my_fighting_ships = [ship for ship in game_map.get_me().all_ships() if
                          ship.docking_status == hlt.entity.Ship.DockingStatus.UNDOCKED]
     all_my_ship_ids = [ship.id for ship in game_map.get_me().all_ships()]
@@ -36,12 +36,18 @@ while True:
     non_full_friendly_planets = [planet for planet in all_planets if
                                  planet.owner in [None, game_map.get_me()] and not planet.is_full()]
     enemy_planets = [planet for planet in all_planets if planet.owner not in [None, game_map.get_me()]]
-
-    # collect map information
     enemy_ships = bot_utils.get_all_enemy_ships(game_map)
     docked_enemy_ships = [enemy for enemy in enemy_ships if
                           enemy.docking_status in [hlt.entity.Ship.DockingStatus.DOCKING,
                                                    hlt.entity.Ship.DockingStatus.DOCKED]]
+
+    enemy_tracking_new = {enemy.id: hlt.entity.Position(enemy.x, enemy.y) for enemy in enemy_ships}
+    enemy_location_prediction = {}
+    for enemy_id in enemy_tracking_new:
+        if enemy_id in enemy_tracking:
+            enemy_location_prediction[enemy_id] = (2 * enemy_tracking_new[enemy_id] - enemy_tracking[enemy_id])
+    enemy_tracking = enemy_tracking_new
+    logging.info(f'Time used for enemy ship tracking: {timer.get_time()}')
 
     planet_defense_radii = [planet.radius + defensive_action_radius for planet in my_planets]
     proximal_enemy_ships = bot_utils.get_proximity_alerts(my_planets, planet_defense_radii, enemy_ships)
@@ -52,9 +58,15 @@ while True:
     good_to_dock_planets = \
         [planet for planet in non_full_friendly_planets
          if bot_utils.get_proximity(planet, enemy_ships) > safe_docking_distance + planet.radius
-         or planet.owner == game_map.get_me()
-         or len(bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius], my_fighting_ships + my_planets))
+
+         or (planet.owner == game_map.get_me() and len(
+            bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius], enemy_ships)) < len(
+            bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius], my_fighting_ships)))
+
+         or len(bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius],
+                                               my_fighting_ships + my_planets))
          > 2 * len(bot_utils.get_proximity_alerts([planet], [safe_docking_distance + planet.radius], enemy_ships))]
+    logging.info(f'Time used for good planet determination: {timer.get_time()}')
 
     other_dockable_planets = [planet for planet in non_full_friendly_planets if planet not in good_to_dock_planets]
 
@@ -70,6 +82,7 @@ while True:
 
     good_opportunities = docked_enemy_ships + good_dock_spots
 
+    # update type table
     logging.info(f'all_my_ship_ids: {all_my_ship_ids}')
     # remove dead guys
     for ship_id in list(type_table.keys()):
@@ -106,6 +119,11 @@ while True:
             else:
                 enemy = bot_utils.get_closest(ship, enemy_ships)
                 orders[ship] = enemy
+
+    for ship, target in list(orders.items()):
+        if isinstance(target, hlt.entity.Ship):
+            if target.id in enemy_location_prediction:
+                orders[ship] = enemy_location_prediction[target.id]
 
     # create abbreviated order dict for logging
     logging_orders = {}
