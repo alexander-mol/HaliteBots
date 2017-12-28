@@ -5,7 +5,7 @@ import random
 import copy
 import time
 
-game = hlt.Game("Interceptor-augmented")
+game = hlt.Game("Comparison-Bot")
 
 # parameters
 defensive_action_radius = 40  # radius around a planet within which interceptors will attack enemies (also longest distance interceptor will travel to intercept)
@@ -175,7 +175,7 @@ while True:
                 padding=padding,
                 avoid_entities=avoid_entities)
 
-            new_position = bot_utils.convert_command_to_updated_entity(ship, command)
+            new_position = bot_utils.convert_command_to_position_delta(ship, command) + ship
             avoid_entities.append(new_position)
 
             if command:

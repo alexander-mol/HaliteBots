@@ -69,6 +69,21 @@ class Entity:
     def _link(self, players, planets):
         pass
 
+    def __add__(self, other):
+        return Position(self.x + other.x, self.y + other.y)
+
+    def __mul__(self, other):
+        return Position(self.x * other, self.y * other)
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __truediv__(self, other):
+        return Position(self.x / other, self.y / other)
+
+    def __sub__(self, other):
+        return Position(self.x - other.x, self.y - other.y)
+
     def __str__(self):
         return "Entity {} (id: {}) at position: (x = {}, y = {}), with radius = {}"\
             .format(self.__class__.__name__, self.id, self.x, self.y, self.radius)
@@ -430,21 +445,6 @@ class Position(Entity):
         self.health = None
         self.owner = None
         self.id = None
-
-    def __add__(self, other):
-        return Position(self.x + other.x, self.y + other.y)
-
-    def __mul__(self, other):
-        return Position(self.x * other, self.y * other)
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
-
-    def __truediv__(self, other):
-        return Position(self.x / other, self.y / other)
-
-    def __sub__(self, other):
-        return Position(self.x - other.x, self.y - other.y)
 
     def _link(self, players, planets):
         raise NotImplementedError("Position should not have link attributes.")

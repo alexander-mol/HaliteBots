@@ -26,9 +26,10 @@ Serious:
 - job matrix in terms of benefit - ships on the LHS should also include 'packs'
     - can express benefit in terms of rate of return on ship production rate delta discounted 2% per turn over the life
     of the game x probability of success
+- tracking enemies over more time periods to estimate position better
 
 Ready to implement:
 - in defense, select a leader, he targets the enemy, other guys follow the leader
 - if a ship decides to go for an attack opportunity, then he should be on a special list for other ships to follow
 - reduce throttling so that it only triggers at like 1750 or something
-- need additional throttling - for ships that are far away from the action - just don't use them in my_fighting_ships
+- need additional throttling - for ships that are far away from the action - don't use them in job search and have them be zombies with navigate(ignore_ships=True)

@@ -135,7 +135,7 @@ def total_dist(alloc):
         dist += ship.calculate_distance_between(target)
     return dist
 
-def convert_command_to_updated_entity(ship, string):
+def convert_command_to_position_delta(ship, string):
     if not string:
         return ship
     parts = string.split(' ')
@@ -143,10 +143,16 @@ def convert_command_to_updated_entity(ship, string):
     angle = int(parts[3])
     dx = math.cos(math.radians(angle)) * magnitude
     dy = math.sin(math.radians(angle)) * magnitude
-    obstacle = copy.copy(ship)
-    obstacle.x += dx
-    obstacle.y += dy
-    return obstacle
+    return hlt.entity.Position(dx, dy)
+
+def get_central_entity(entities):
+    if len(entities) == 0:
+        return None
+    c = hlt.entity.Position(0, 0)
+    for point in entities:
+        c += point
+    c /= len(entities)
+    return get_closest(c, entities)
 
 
 class Timer:
