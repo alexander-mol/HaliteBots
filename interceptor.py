@@ -1,11 +1,10 @@
 import hlt
 import bot_utils
 import logging
-import random
-import copy
-import time
+import benefit_calculator
+import numpy as np
 
-game = hlt.Game("Interceptor-augmented")
+game = hlt.Game("Investment-Manager")
 
 # parameters
 defensive_action_radius = 40  # radius around a planet within which interceptors will attack enemies (also longest distance interceptor will travel to intercept)
@@ -83,64 +82,26 @@ while True:
         for _ in range(planet.num_docking_spots - len(planet.all_docked_ships())):
             other_dock_spots.append(planet)
 
-    good_opportunities = docked_enemy_ships + good_dock_spots
-
-    # update type table
-    logging.info(f'all_my_ship_ids: {all_my_ship_ids}')
-    # remove dead guys
-    for ship_id in list(type_table.keys()):
-        if ship_id not in all_my_ship_ids:
-            del type_table[ship_id]
-    # add new guys
-    for ship in my_fighting_ships:
-        if ship.id not in type_table:
-            type_table[ship.id] = 'interceptor'
-
-    logging.info(f'type_table: {type_table}')
-
-    interceptors = {enemy: [] for enemy in proximal_enemy_ships}
-    # can also join all action lists (dock spots and proximal enemies) and then let each ship do the closest action
+    good_opportunities = docked_enemy_ships + good_dock_spots + proximal_enemy_ships
+    # build opportunity matrix
     orders = {}
-    # attack any proximal enemies
-    for ship in copy.copy(my_fighting_ships):
-        if len(proximal_enemy_ships) > 0:
-            enemy = bot_utils.get_closest(ship, proximal_enemy_ships)
-            if ship.calculate_distance_between(enemy) < defensive_action_radius \
-                    and len(interceptors[enemy]) < max_response:
-                orders[ship] = enemy
-                interceptors[enemy].append(ship)
-                my_fighting_ships.remove(ship)
-                if len(interceptors[enemy]) >= max_response:
-                    proximal_enemy_ships.remove(enemy)
+    for i, ship in enumerate(my_fighting_ships):
+        best_opportunity = bot_utils.get_closest(ship, enemy_ships)
+        score = 0
+        for j, opportunity in enumerate(good_opportunities):
+            benefit = benefit_calculator.get_benefit(ship, opportunity, t, orders, game_map)
+            if benefit > score:
+                score = benefit
+                best_opportunity = opportunity
+        orders[ship] = best_opportunity
+        good_opportunities.remove(best_opportunity)
 
-    # the rest can build or hunt good opportunities
-    temp_alloc = {}
-    # temporary - for comparison purposes:
-    good_opportunities_copy = copy.deepcopy(good_opportunities)
-    for ship in my_fighting_ships:
-        if ship not in orders:
-            if len(good_opportunities_copy) > 0:
-                closest_opportunity = bot_utils.pop_closest(ship, good_opportunities_copy)
-                temp_alloc[ship] = closest_opportunity
+    # if t < 2:
+    #     main_ship = my_fighting_ships[0]
+    #     for ship in orders:
+    #         orders[ship] = orders[main_ship]
 
-    minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_fighting_ships, good_opportunities)
 
-    def total_dist(alloc):
-        dist = 0
-        for ship, target in alloc.items():
-            dist += ship.calculate_distance_between(target)
-        return dist
-
-    logging.info(f'Total dist using old system: {total_dist(temp_alloc)}, len: {len(temp_alloc)}')
-    logging.info(f'Total dist using new system: {total_dist(minimal_dist_alloc)}, len: {len(minimal_dist_alloc)}')
-
-    logging.info(f'Time to calculate minimal distance job allocation: {timer.get_time()} ms')
-    for ship in my_fighting_ships:
-        if ship in minimal_dist_alloc:
-            orders[ship] = minimal_dist_alloc[ship]
-        else:
-            enemy = bot_utils.get_closest(ship, enemy_ships)
-            orders[ship] = enemy
 
     # create abbreviated order dict for logging
     logging_orders = {}
