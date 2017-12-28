@@ -154,6 +154,11 @@ def get_central_entity(entities):
     c /= len(entities)
     return get_closest(c, entities)
 
+def relable_command(command_string, new_id):
+    parts = command_string.split(' ')
+    parts[1] = str(new_id)
+    return ' '.join(parts)
+
 
 class Timer:
     def __init__(self):

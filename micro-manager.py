@@ -12,11 +12,10 @@ defensive_action_radius = 40  # radius around a planet within which interceptors
 max_response = 4  # maximum number of interceptors per enemy
 safe_docking_distance = 20  # minimum 'safe' distance from a planet to the nearest enemy
 
-general_approach_dist = 2  # 'closest point to' offset
-leader_approach_dist = 1
-tether_dist = 5
-enemy_tether_dist = 5
-padding = 1.2  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
+group_trigger_radius = 5
+group_trigger_size = 3
+approach_dist = 2  # 'closest point to' offset
+padding = 1  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
 
 type_table = {}  # e.g. id -> string
 enemy_tracking = {}
@@ -108,6 +107,36 @@ while True:
 
     logging.info(f'type_table: {type_table}')
 
+    # START ANALYSIS ---------------------------------------------------------------------------------------------------
+    group_leaders = {}
+    for ship1 in list(my_fighting_ships):
+        if ship1 not in my_fighting_ships:
+            continue
+        for ship2 in list(my_fighting_ships):
+            if ship1 is ship2 or ship2 not in my_fighting_ships:
+                continue
+            if ship1.calculate_distance_between(ship2) < 2 * group_trigger_radius:
+                working_group = [ship1, ship2]
+                center = (ship1 + ship2) / 2  # type: hlt.entity.Ship
+                for next_ship in my_fighting_ships:
+                    if next_ship in working_group:
+                        continue
+                    if center.calculate_distance_between(next_ship) < group_trigger_radius:
+                        working_group.append(next_ship)
+                if len(working_group) >= group_trigger_size:
+                    central_ship = bot_utils.get_central_entity(working_group)
+                    working_group.remove(central_ship)
+                    group_leaders[central_ship] = working_group
+                    for follower in working_group:
+                        my_fighting_ships.remove(follower)
+                    # leader.radius = group_trigger_radius - can't do now because then it can't find any paths (ships inside)
+
+    # abbreviate group_leaders dict for logging
+    logging_dict = {}
+    for leader, followers in group_leaders.items():
+        logging_dict[leader.id] = [follower.id for follower in followers]
+    logging.info(f'Groups found: {logging_dict}')
+
     interceptors = {enemy: [] for enemy in proximal_enemy_ships}
     # can also join all action lists (dock spots and proximal enemies) and then let each ship do the closest action
     orders = {}
@@ -117,28 +146,11 @@ while True:
             enemy = bot_utils.get_closest(ship, proximal_enemy_ships)
             if ship.calculate_distance_between(enemy) < defensive_action_radius \
                     and len(interceptors[enemy]) < max_response:
+                orders[ship] = enemy
                 interceptors[enemy].append(ship)
                 my_fighting_ships.remove(ship)
                 if len(interceptors[enemy]) >= max_response:
                     proximal_enemy_ships.remove(enemy)
-    defensive_packs = {}
-    for enemy in interceptors:
-        if len(interceptors[enemy]) > 0:
-            pack_leader = bot_utils.get_closest(enemy, interceptors[enemy])
-            defensive_packs[pack_leader] = []
-            for ship in interceptors[enemy]:
-                if ship is pack_leader:
-                    orders[ship] = enemy
-                else:
-                    defensive_packs[pack_leader].append(ship)
-    tethered_followers = {leader: [] for leader in defensive_packs}
-    for leader in defensive_packs:
-        for follower in defensive_packs[leader]:
-            if leader.calculate_distance_between(follower) < tether_dist:
-                tethered_followers[leader].append(follower)
-    for leader, followers in tethered_followers.items():
-        if len(followers) > 0:
-            leader.radius = 2
 
     # assign other jobs
     minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_fighting_ships, good_opportunities)
@@ -162,64 +174,22 @@ while True:
             if target.id in enemy_location_prediction:
                 orders[ship] = enemy_location_prediction[target.id]
 
-    # prepare avoid_entities list
-    avoid_entities = all_planets + all_docked_ships
-    for enemy in flying_enemies:
-        if enemy.id in enemy_location_prediction:
-            avoid_entities.append(enemy_location_prediction[enemy.id])
-        else:
-            avoid_entities.append(enemy)
-
-    # handle navigation pack leaders and tethered followers
-    for leader in list(defensive_packs):
-        command = leader.smart_navigate(
-            leader.closest_point_to(orders[leader], min_distance=general_approach_dist),
-            game_map,
-            hlt.constants.MAX_SPEED,
-            angular_step=angular_step,
-            max_corrections=max_corrections,
-            padding=padding,
-            avoid_entities=avoid_entities)
-
-        if command:
-            command_queue.append(command)
-
-            del orders[leader]
-            delta = bot_utils.convert_command_to_position_delta(leader, command)
-            new_position = delta + leader
-            avoid_entities.append(new_position)
-            for follower in defensive_packs[leader]:
-                if follower in tethered_followers[leader]:
-                    command_queue.append(f't {follower.id} {command.split(" ")[2]} {command.split(" ")[3]}')
-                else:
-                    orders[follower] = new_position
-
-    # handle navigation for other ships
-    for ship in list(orders):
+    for ship in orders:
         if isinstance(orders[ship], hlt.entity.Planet) and ship.can_dock(orders[ship]):
-            command_queue.append(ship.dock(orders[ship]))
-            avoid_entities.append(ship)
+            command = ship.dock(orders[ship])
         else:
-            if orders[ship] in defensive_packs:
-                approach_dist = leader_approach_dist
-            else:
-                approach_dist = general_approach_dist
             command = ship.smart_navigate(
                 ship.closest_point_to(orders[ship], min_distance=approach_dist),
                 game_map,
                 hlt.constants.MAX_SPEED,
                 angular_step=angular_step,
                 max_corrections=max_corrections,
-                padding=padding,
-                avoid_entities=avoid_entities)
-
-            if command:
-                command_queue.append(command)
-
-            del orders[ship]
-            new_position = bot_utils.convert_command_to_position_delta(ship, command) + ship
-            avoid_entities.append(new_position)
-
+                padding=padding)
+        if command:
+            command_queue.append(command)
+            if ship in group_leaders:
+                for follower in group_leaders[ship]:
+                    command_queue.append(bot_utils.relable_command(command, follower.id))
 
     delta_time = timer.get_time()
     logging.info(f'Time to calculate trajectories: {delta_time} ms,'
