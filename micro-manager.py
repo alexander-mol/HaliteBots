@@ -5,7 +5,7 @@ import random
 import copy
 import time
 
-game = hlt.Game("Interceptor-augmented")
+game = hlt.Game("Micro-manager")
 
 # parameters
 defensive_action_radius = 40  # radius around a planet within which interceptors will attack enemies (also longest distance interceptor will travel to intercept)

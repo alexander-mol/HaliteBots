@@ -16,5 +16,19 @@ Need more thought:
 - Better routing using A* with graph building - and location prediction to avoid crashing own guys
     - could pre-analyze the map to create the graph
 
+Serious:
+- need to target planets that are not the closest opportunity -> just one guy can turn the tide later on
+- if guy is outnumbered he should seek safety
+- consider targeting own dudes when they attack (create formation organically)
+- when attacking, should have support (e.g. when attacking docked ships)
+- really need to avoid self crashes
+- can make a probability of success model for various actions (docking at a spot, traveling to a spot) - using ML on past game data
+- job matrix in terms of benefit - ships on the LHS should also include 'packs'
+    - can express benefit in terms of rate of return on ship production rate delta discounted 2% per turn over the life
+    of the game x probability of success
+
 Ready to implement:
-- also attack with 4 guys per opportunity
+- in defense, select a leader, he targets the enemy, other guys follow the leader
+- if a ship decides to go for an attack opportunity, then he should be on a special list for other ships to follow
+- reduce throttling so that it only triggers at like 1750 or something
+- need additional throttling - for ships that are far away from the action - just don't use them in my_fighting_ships

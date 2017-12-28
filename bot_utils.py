@@ -1,5 +1,7 @@
 import hlt
 import time
+import math
+import copy
 import numpy as np
 
 
@@ -132,6 +134,19 @@ def total_dist(alloc):
     for ship, target in alloc.items():
         dist += ship.calculate_distance_between(target)
     return dist
+
+def convert_command_to_updated_entity(ship, string):
+    if not string:
+        return ship
+    parts = string.split(' ')
+    magnitude = int(parts[2])
+    angle = int(parts[3])
+    dx = math.cos(math.radians(angle)) * magnitude
+    dy = math.sin(math.radians(angle)) * magnitude
+    obstacle = copy.copy(ship)
+    obstacle.x += dx
+    obstacle.y += dy
+    return obstacle
 
 
 class Timer:

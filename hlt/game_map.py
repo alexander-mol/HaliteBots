@@ -124,7 +124,7 @@ class Map:
                 return celestial_object
         return None
 
-    def obstacles_between(self, ship, target, ignore=(), padding=0.1):
+    def obstacles_between(self, ship, target, ignore=(), padding=0.1, avoid_entities=None):
         """
         Check whether there is a straight-line path to the given point, without planetary obstacles in between.
 
@@ -135,8 +135,11 @@ class Map:
         :rtype: list[entity.Entity]
         """
         obstacles = []
-        entities = ([] if issubclass(entity.Planet, ignore) else self.all_planets()) \
-            + ([] if issubclass(entity.Ship, ignore) else self._all_ships())
+        if not avoid_entities:
+            entities = ([] if issubclass(entity.Planet, ignore) else self.all_planets()) \
+                + ([] if issubclass(entity.Ship, ignore) else self._all_ships())
+        else:
+            entities = avoid_entities
         for foreign_entity in entities:
             if foreign_entity == ship or foreign_entity == target:
                 continue
