@@ -1,28 +1,29 @@
 import hlt
 import bot_utils
 import logging
-import random
 import copy
-import time
 
-game = hlt.Game("Micro-manager")
+game = hlt.Game("Micro-Manager")
 
-# parameters
-defensive_action_radius = 40  # radius around a planet within which interceptors will attack enemies (also longest distance interceptor will travel to intercept)
+# PARAMETERS
+# strategic parameters
+defensive_action_radius = 40  # enemy distance from planet that triggers defensive action
 max_response = 4  # maximum number of interceptors per enemy
 safe_docking_distance = 20  # minimum 'safe' distance from a planet to the nearest enemy
 
+# dogfighting parameters
 general_approach_dist = 2  # 'closest point to' offset
 leader_approach_dist = 2
 tether_dist = 3
 padding = 0.2  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
 
-type_table = {}  # e.g. id -> string
-enemy_tracking = {}
-
+# navigation parameters
 angular_step = 1
 horizon_reduction_factor = 0.95
 max_corrections = int(90 / angular_step) + 1
+
+type_table = {}  # e.g. id -> string
+enemy_tracking = {}
 
 t = 0
 while True:
@@ -30,20 +31,33 @@ while True:
     logging.info(f't = {t}')
     timer = bot_utils.Timer()
 
-    command_queue = []
-
+    # 1 DATA COLLECTION
     # collect general map information
     all_planets = game_map.all_planets()
     all_docked_ships = [ship for player in game_map.all_players() for ship in player.all_ships() if
                         ship.docking_status != hlt.entity.Ship.DockingStatus.UNDOCKED]
+
     # collect my stuff
     my_fighting_ships = [ship for ship in game_map.get_me().all_ships() if
                          ship.docking_status == hlt.entity.Ship.DockingStatus.UNDOCKED]
+    my_unassigned_ships = copy.copy(my_fighting_ships)
     all_my_ship_ids = [ship.id for ship in game_map.get_me().all_ships()]
 
     my_planets = [planet for planet in game_map.all_planets() if planet.owner == game_map.get_me()]
     non_full_friendly_planets = [planet for planet in all_planets if
                                  planet.owner in [None, game_map.get_me()] and not planet.is_full()]
+
+    # update type table
+    logging.info(f'all my ships: {all_my_ship_ids}')
+    # remove dead guys
+    for ship_id in list(type_table.keys()):
+        if ship_id not in all_my_ship_ids:
+            del type_table[ship_id]
+    # add new guys
+    for ship in my_fighting_ships:
+        if ship.id not in type_table:
+            type_table[ship.id] = 'interceptor'
+    # logging.info(f'type_table: {type_table}')
 
     # collect enemy stuff
     enemy_planets = [planet for planet in all_planets if planet.owner not in [None, game_map.get_me()]]
@@ -60,7 +74,6 @@ while True:
         if enemy_id in enemy_tracking:
             enemy_location_prediction[enemy_id] = (2 * enemy_tracking_new[enemy_id] - enemy_tracking[enemy_id])
     enemy_tracking = enemy_tracking_new
-    logging.info(f'Time used for enemy ship tracking: {timer.get_time()} ms')
 
     planet_defense_radii = [planet.radius + defensive_action_radius for planet in my_planets]
     proximal_enemy_ships = bot_utils.get_proximity_alerts(my_planets, planet_defense_radii, enemy_ships)
@@ -68,57 +81,40 @@ while True:
     if len(proximal_enemy_ships) > 0:
         logging.info(f'Enemy ships nearby: {[ship.id for ship in proximal_enemy_ships]}')
 
+    # 2 STRATEGIC CALCULATIONS & JOB CREATION - output: list good_opportunities
     good_to_dock_planets = \
         [planet for planet in non_full_friendly_planets
          if bot_utils.get_proximity(planet, enemy_ships) > safe_docking_distance + planet.radius
 
          or (planet.owner == game_map.get_me() and len(
             bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius], enemy_ships)) < len(
-            bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius], my_fighting_ships)))
+            bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius], my_unassigned_ships)))
 
          or len(bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius],
-                                               my_fighting_ships + my_planets))
+                                               my_unassigned_ships + my_planets))
          > 2 * len(bot_utils.get_proximity_alerts([planet], [safe_docking_distance + planet.radius], enemy_ships))]
+    logging.info(f'Good planets: {["P"+str(planet.id) for planet in good_to_dock_planets]}')
     logging.info(f'Time used for good planet determination: {timer.get_time()}')
-
-    other_dockable_planets = [planet for planet in non_full_friendly_planets if planet not in good_to_dock_planets]
 
     good_dock_spots = []
     for planet in good_to_dock_planets:
         for _ in range(planet.num_docking_spots - len(planet.all_docked_ships())):
             good_dock_spots.append(planet)
 
-    other_dock_spots = []
-    for planet in other_dockable_planets:
-        for _ in range(planet.num_docking_spots - len(planet.all_docked_ships())):
-            other_dock_spots.append(planet)
-
     good_opportunities = docked_enemy_ships + good_dock_spots
 
-    # update type table
-    logging.info(f'all_my_ship_ids: {all_my_ship_ids}')
-    # remove dead guys
-    for ship_id in list(type_table.keys()):
-        if ship_id not in all_my_ship_ids:
-            del type_table[ship_id]
-    # add new guys
-    for ship in my_fighting_ships:
-        if ship.id not in type_table:
-            type_table[ship.id] = 'interceptor'
-
-    logging.info(f'type_table: {type_table}')
-
+    # 3 JOB ALLOCATION - output: dict orders
+    # planet defense calculations
+    # TODO: make this part of the strategic calculations and then let the allocation algorithm decide who does it
     interceptors = {enemy: [] for enemy in proximal_enemy_ships}
-    # can also join all action lists (dock spots and proximal enemies) and then let each ship do the closest action
     orders = {}
-    # attack any proximal enemies
-    for ship in copy.copy(my_fighting_ships):
+    for ship in list(my_unassigned_ships):
         if len(proximal_enemy_ships) > 0:
             enemy = bot_utils.get_closest(ship, proximal_enemy_ships)
             if ship.calculate_distance_between(enemy) < defensive_action_radius \
                     and len(interceptors[enemy]) < max_response:
                 interceptors[enemy].append(ship)
-                my_fighting_ships.remove(ship)
+                my_unassigned_ships.remove(ship)
                 if len(interceptors[enemy]) >= max_response:
                     proximal_enemy_ships.remove(enemy)
 
@@ -141,21 +137,25 @@ while True:
         if len(followers) > 0:
             leader.radius = leader.calculate_distance_between(bot_utils.get_furthest(leader, followers)) + 0.5
 
-    # assign other jobs
-    minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_fighting_ships, good_opportunities)
+    minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, good_opportunities)
     logging.info(f'Time to calculate minimal distance job allocation: {timer.get_time()} ms')
-    for ship in my_fighting_ships:
+    for ship in list(my_unassigned_ships):
         if ship in minimal_dist_alloc:
             orders[ship] = minimal_dist_alloc[ship]
         else:
             enemy = bot_utils.get_closest(ship, enemy_ships)
             orders[ship] = enemy
+        my_unassigned_ships.remove(ship)
 
-    # create abbreviated order dict for logging
+    # 4 LOGGING
     logging_orders = {}
     for ship, order in orders.items():
         logging_orders[ship.id] = f'S{order.id}' if isinstance(order, hlt.entity.Ship) else f'P{order.id}'
     logging.info(f'orders: {logging_orders}')
+    defensive_packs_logging = {}
+    for leader, followers in defensive_packs.items():
+        defensive_packs_logging[leader.id] = [ship.id for ship in followers]
+    logging.info(f'defensive_packs: {defensive_packs_logging}')
 
     # update orders to account for location prediction
     for ship, target in list(orders.items()):
@@ -163,23 +163,18 @@ while True:
             if target.id in enemy_location_prediction:
                 orders[ship] = enemy_location_prediction[target.id]
 
-    all_my_flying_ships = [ship for ship in game_map.get_me().all_ships() if
-                           ship.docking_status == hlt.entity.Ship.DockingStatus.UNDOCKED]
-    all_tethered_ships = [ship for leader in tethered_followers for ship in tethered_followers[leader]]
-
-    all_my_flying_obstacles = [ship for ship in all_my_flying_ships if ship not in all_tethered_ships]
-
+    # 5 COMMAND GENERATION
     # prepare avoid_entities list
+    all_tethered_ships = [ship for leader in tethered_followers for ship in tethered_followers[leader]]
+    all_my_flying_obstacles = [ship for ship in my_fighting_ships if ship not in all_tethered_ships]
     avoid_entities = all_planets + all_docked_ships + all_my_flying_obstacles
     for enemy in flying_enemies:
         if enemy.id in enemy_location_prediction:
             avoid_entities.append(enemy_location_prediction[enemy.id])
         else:
             avoid_entities.append(enemy)
-    avoid_entities_summary = [ship.id for ship in avoid_entities]
-    logging.info(f'defensive_packs: {defensive_packs}')
-    logging.info(f'avoid_entities: {avoid_entities}')
 
+    command_queue = []
     # handle navigation of pack leaders and tethered followers
     for leader in list(defensive_packs):
         avoid_entities.remove(leader)
@@ -213,7 +208,6 @@ while True:
         if isinstance(orders[ship], hlt.entity.Planet) and ship.can_dock(orders[ship]):
             command_queue.append(ship.dock(orders[ship]))
         else:
-            logging.info(f'trying to remove {ship}')
             avoid_entities.remove(ship)
             if orders[ship] in defensive_packs:
                 approach_dist = leader_approach_dist
