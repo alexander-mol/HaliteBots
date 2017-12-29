@@ -41,6 +41,7 @@ while True:
     my_fighting_ships = [ship for ship in game_map.get_me().all_ships() if
                          ship.docking_status == hlt.entity.Ship.DockingStatus.UNDOCKED]
     my_unassigned_ships = copy.copy(my_fighting_ships)
+    my_free_navigation_ships = copy.copy(my_fighting_ships)
     all_my_ship_ids = [ship.id for ship in game_map.get_me().all_ships()]
 
     my_planets = [planet for planet in game_map.all_planets() if planet.owner == game_map.get_me()]
@@ -69,10 +70,11 @@ while True:
                                                    hlt.entity.Ship.DockingStatus.DOCKED]]
 
     enemy_tracking_new = {enemy.id: hlt.entity.Position(enemy.x, enemy.y) for enemy in enemy_ships}
-    enemy_location_prediction = {}
+    location_prediction = {}
     for enemy_id in enemy_tracking_new:
         if enemy_id in enemy_tracking:
-            enemy_location_prediction[enemy_id] = (2 * enemy_tracking_new[enemy_id] - enemy_tracking[enemy_id])
+            enemy = [enemy for enemy in enemy_ships if enemy.id == enemy_id][0]
+            location_prediction[enemy] = (2 * enemy_tracking_new[enemy_id] - enemy_tracking[enemy_id])
     enemy_tracking = enemy_tracking_new
 
     planet_defense_radii = [planet.radius + defensive_action_radius for planet in my_planets]
@@ -104,6 +106,7 @@ while True:
     good_opportunities = docked_enemy_ships + good_dock_spots
 
     # 3 JOB ALLOCATION - output: dict orders
+    # All orders are placed here - the eventual position may change later on due to position prediction
     # planet defense calculations
     # TODO: make this part of the strategic calculations and then let the allocation algorithm decide who does it
     interceptors = {enemy: [] for enemy in proximal_enemy_ships}
@@ -127,12 +130,14 @@ while True:
                 if ship is pack_leader:
                     orders[ship] = enemy
                 else:
+                    orders[ship] = pack_leader
                     defensive_packs[pack_leader].append(ship)
     tethered_followers = {leader: [] for leader in defensive_packs}
     for leader in defensive_packs:
         for follower in defensive_packs[leader]:
             if leader.calculate_distance_between(follower) < tether_dist:
                 tethered_followers[leader].append(follower)
+                my_free_navigation_ships.remove(follower)
     for leader, followers in tethered_followers.items():
         if len(followers) > 0:
             leader.radius = leader.calculate_distance_between(bot_utils.get_furthest(leader, followers)) + 0.5
@@ -157,64 +162,41 @@ while True:
         defensive_packs_logging[leader.id] = [ship.id for ship in followers]
     logging.info(f'defensive_packs: {defensive_packs_logging}')
 
-    # update orders to account for location prediction
-    for ship, target in list(orders.items()):
-        if isinstance(target, hlt.entity.Ship):
-            if target.id in enemy_location_prediction:
-                orders[ship] = enemy_location_prediction[target.id]
-
     # 5 COMMAND GENERATION
     # prepare avoid_entities list
     all_tethered_ships = [ship for leader in tethered_followers for ship in tethered_followers[leader]]
     all_my_flying_obstacles = [ship for ship in my_fighting_ships if ship not in all_tethered_ships]
     avoid_entities = all_planets + all_docked_ships + all_my_flying_obstacles
     for enemy in flying_enemies:
-        if enemy.id in enemy_location_prediction:
-            avoid_entities.append(enemy_location_prediction[enemy.id])
+        if enemy in location_prediction:
+            avoid_entities.append(location_prediction[enemy])
         else:
             avoid_entities.append(enemy)
 
+    # determine execution order
+    execution_order = []
+    for ship in defensive_packs:
+        execution_order.append(ship)
+    for ship in my_free_navigation_ships:
+        if ship not in execution_order:
+            execution_order.append(ship)
+
     command_queue = []
-    # handle navigation of pack leaders and tethered followers
-    for leader in list(defensive_packs):
-        avoid_entities.remove(leader)
-        command = leader.smart_navigate(
-            leader.closest_point_to(orders[leader], min_distance=general_approach_dist),
-            game_map,
-            hlt.constants.MAX_SPEED,
-            angular_step=angular_step,
-            max_corrections=max_corrections,
-            horizon_reduction_factor=horizon_reduction_factor,
-            padding=padding,
-            avoid_entities=avoid_entities)
-
-        if command:
-            command_queue.append(command)
-            delta = bot_utils.convert_command_to_position_delta(leader, command)
-            new_position = delta + leader
-            avoid_entities.append(new_position)
-            for follower in defensive_packs[leader]:
-                if follower in tethered_followers[leader]:
-                    command_queue.append(f't {follower.id} {command.split(" ")[2]} {command.split(" ")[3]}')
-                else:
-                    orders[follower] = new_position
-        else:
-            # if command fails, keep the previous position
-            avoid_entities.append(leader)
-        del orders[leader]
-
-    # handle navigation for other ships
-    for ship in list(orders):
+    for ship in execution_order:  # types of orders to expect: docking, go to enemy, go to leader, mimic leader
         if isinstance(orders[ship], hlt.entity.Planet) and ship.can_dock(orders[ship]):
             command_queue.append(ship.dock(orders[ship]))
         else:
             avoid_entities.remove(ship)
-            if orders[ship] in defensive_packs:
+            if orders[ship] in defensive_packs.keys():
                 approach_dist = leader_approach_dist
             else:
                 approach_dist = general_approach_dist
+            if orders[ship] in location_prediction:
+                target = location_prediction[orders[ship]]
+            else:
+                target = orders[ship]
             command = ship.smart_navigate(
-                ship.closest_point_to(orders[ship], min_distance=approach_dist),
+                ship.closest_point_to(target, min_distance=approach_dist),
                 game_map,
                 hlt.constants.MAX_SPEED,
                 angular_step=angular_step,
@@ -222,13 +204,74 @@ while True:
                 horizon_reduction_factor=horizon_reduction_factor,
                 padding=padding,
                 avoid_entities=avoid_entities)
-
             if command:
                 command_queue.append(command)
 
-            del orders[ship]
-            new_position = bot_utils.convert_command_to_position_delta(ship, command) + ship
+                if ship in defensive_packs.keys():
+                    for follower in defensive_packs[ship]:
+                        if follower in tethered_followers[ship]:
+                            command_queue.append(f't {follower.id} {command.split(" ")[2]} {command.split(" ")[3]}')
+
+                new_position = bot_utils.convert_command_to_position_delta(ship, command) + ship
+            else:
+                new_position = ship
             avoid_entities.append(new_position)
+            location_prediction[ship] = new_position
+
+    # # handle navigation of pack leaders and tethered followers
+    # for leader in list(defensive_packs):
+    #     avoid_entities.remove(leader)
+    #     command = leader.smart_navigate(
+    #         leader.closest_point_to(orders[leader], min_distance=general_approach_dist),
+    #         game_map,
+    #         hlt.constants.MAX_SPEED,
+    #         angular_step=angular_step,
+    #         max_corrections=max_corrections,
+    #         horizon_reduction_factor=horizon_reduction_factor,
+    #         padding=padding,
+    #         avoid_entities=avoid_entities)
+    #
+    #     if command:
+    #         command_queue.append(command)
+    #         delta = bot_utils.convert_command_to_position_delta(leader, command)
+    #         new_position = delta + leader
+    #         avoid_entities.append(new_position)
+    #         for follower in defensive_packs[leader]:
+    #             if follower in tethered_followers[leader]:
+    #                 command_queue.append(f't {follower.id} {command.split(" ")[2]} {command.split(" ")[3]}')
+    #             else:
+    #                 orders[follower] = new_position
+    #     else:
+    #         # if command fails, keep the previous position
+    #         avoid_entities.append(leader)
+    #     del orders[leader]
+    #
+    # # handle navigation for other ships
+    # for ship in list(orders):
+    #     if isinstance(orders[ship], hlt.entity.Planet) and ship.can_dock(orders[ship]):
+    #         command_queue.append(ship.dock(orders[ship]))
+    #     else:
+    #         avoid_entities.remove(ship)
+    #         if orders[ship] in defensive_packs:
+    #             approach_dist = leader_approach_dist
+    #         else:
+    #             approach_dist = general_approach_dist
+    #         command = ship.smart_navigate(
+    #             ship.closest_point_to(orders[ship], min_distance=approach_dist),
+    #             game_map,
+    #             hlt.constants.MAX_SPEED,
+    #             angular_step=angular_step,
+    #             max_corrections=max_corrections,
+    #             horizon_reduction_factor=horizon_reduction_factor,
+    #             padding=padding,
+    #             avoid_entities=avoid_entities)
+    #
+    #         if command:
+    #             command_queue.append(command)
+    #
+    #         del orders[ship]
+    #         new_position = bot_utils.convert_command_to_position_delta(ship, command) + ship
+    #         avoid_entities.append(new_position)
 
     delta_time = timer.get_time()
     logging.info(f'Time to calculate trajectories: {delta_time} ms,'

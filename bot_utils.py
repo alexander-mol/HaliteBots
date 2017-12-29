@@ -146,8 +146,6 @@ def total_dist(alloc):
     return dist
 
 def convert_command_to_position_delta(ship, string):
-    if not string:
-        return ship
     parts = string.split(' ')
     magnitude = int(parts[2])
     angle = int(parts[3])
