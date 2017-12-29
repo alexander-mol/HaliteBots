@@ -1,9 +1,8 @@
 import hlt
 import bot_utils
 import logging
-import random
 import copy
-import time
+
 
 game = hlt.Game("Micro-manager")
 
