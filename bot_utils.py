@@ -35,6 +35,16 @@ def get_closest(obj, obj_list):
             min_obj = obj2
     return min_obj
 
+def get_furthest(obj, obj_list):
+    max_seen = -1e10
+    max_obj = None
+    for obj2 in obj_list:
+        dist = obj.calculate_distance_between(obj2)
+        if dist > max_seen:
+            max_seen = dist
+            max_obj = obj2
+    return max_obj
+
 def get_proximity(obj, obj_list):
     min_seen = 1e10
     for obj2 in obj_list:

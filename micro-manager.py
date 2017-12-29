@@ -13,16 +13,16 @@ max_response = 4  # maximum number of interceptors per enemy
 safe_docking_distance = 20  # minimum 'safe' distance from a planet to the nearest enemy
 
 general_approach_dist = 2  # 'closest point to' offset
-leader_approach_dist = 1
-tether_dist = 5
-enemy_tether_dist = 5
-padding = 1.2  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
+leader_approach_dist = 2
+tether_dist = 3
+padding = 0.2  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
 
 type_table = {}  # e.g. id -> string
 enemy_tracking = {}
 
-angular_step = 5
-max_corrections = int(180 / angular_step) + 1
+angular_step = 1
+horizon_reduction_factor = 0.95
+max_corrections = int(90 / angular_step) + 1
 
 t = 0
 while True:
@@ -121,10 +121,11 @@ while True:
                 my_fighting_ships.remove(ship)
                 if len(interceptors[enemy]) >= max_response:
                     proximal_enemy_ships.remove(enemy)
+
     defensive_packs = {}
     for enemy in interceptors:
         if len(interceptors[enemy]) > 0:
-            pack_leader = bot_utils.get_closest(enemy, interceptors[enemy])
+            pack_leader = bot_utils.get_central_entity(interceptors[enemy])
             defensive_packs[pack_leader] = []
             for ship in interceptors[enemy]:
                 if ship is pack_leader:
@@ -138,7 +139,7 @@ while True:
                 tethered_followers[leader].append(follower)
     for leader, followers in tethered_followers.items():
         if len(followers) > 0:
-            leader.radius = 2
+            leader.radius = leader.calculate_distance_between(bot_utils.get_furthest(leader, followers)) + 0.5
 
     # assign other jobs
     minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_fighting_ships, good_opportunities)
@@ -162,29 +163,38 @@ while True:
             if target.id in enemy_location_prediction:
                 orders[ship] = enemy_location_prediction[target.id]
 
+    all_my_flying_ships = [ship for ship in game_map.get_me().all_ships() if
+                           ship.docking_status == hlt.entity.Ship.DockingStatus.UNDOCKED]
+    all_tethered_ships = [ship for leader in tethered_followers for ship in tethered_followers[leader]]
+
+    all_my_flying_obstacles = [ship for ship in all_my_flying_ships if ship not in all_tethered_ships]
+
     # prepare avoid_entities list
-    avoid_entities = all_planets + all_docked_ships
+    avoid_entities = all_planets + all_docked_ships + all_my_flying_obstacles
     for enemy in flying_enemies:
         if enemy.id in enemy_location_prediction:
             avoid_entities.append(enemy_location_prediction[enemy.id])
         else:
             avoid_entities.append(enemy)
+    avoid_entities_summary = [ship.id for ship in avoid_entities]
+    logging.info(f'defensive_packs: {defensive_packs}')
+    logging.info(f'avoid_entities: {avoid_entities}')
 
-    # handle navigation pack leaders and tethered followers
+    # handle navigation of pack leaders and tethered followers
     for leader in list(defensive_packs):
+        avoid_entities.remove(leader)
         command = leader.smart_navigate(
             leader.closest_point_to(orders[leader], min_distance=general_approach_dist),
             game_map,
             hlt.constants.MAX_SPEED,
             angular_step=angular_step,
             max_corrections=max_corrections,
+            horizon_reduction_factor=horizon_reduction_factor,
             padding=padding,
             avoid_entities=avoid_entities)
 
         if command:
             command_queue.append(command)
-
-            del orders[leader]
             delta = bot_utils.convert_command_to_position_delta(leader, command)
             new_position = delta + leader
             avoid_entities.append(new_position)
@@ -193,13 +203,18 @@ while True:
                     command_queue.append(f't {follower.id} {command.split(" ")[2]} {command.split(" ")[3]}')
                 else:
                     orders[follower] = new_position
+        else:
+            # if command fails, keep the previous position
+            avoid_entities.append(leader)
+        del orders[leader]
 
     # handle navigation for other ships
     for ship in list(orders):
         if isinstance(orders[ship], hlt.entity.Planet) and ship.can_dock(orders[ship]):
             command_queue.append(ship.dock(orders[ship]))
-            avoid_entities.append(ship)
         else:
+            logging.info(f'trying to remove {ship}')
+            avoid_entities.remove(ship)
             if orders[ship] in defensive_packs:
                 approach_dist = leader_approach_dist
             else:
@@ -210,6 +225,7 @@ while True:
                 hlt.constants.MAX_SPEED,
                 angular_step=angular_step,
                 max_corrections=max_corrections,
+                horizon_reduction_factor=horizon_reduction_factor,
                 padding=padding,
                 avoid_entities=avoid_entities)
 
@@ -220,14 +236,13 @@ while True:
             new_position = bot_utils.convert_command_to_position_delta(ship, command) + ship
             avoid_entities.append(new_position)
 
-
     delta_time = timer.get_time()
     logging.info(f'Time to calculate trajectories: {delta_time} ms,'
                  f'time per ship: {round(delta_time / (len(my_fighting_ships)+1), 0)} ms')
-    if delta_time > 1000:
-        angular_step = min(angular_step + 5, 45)
-        max_corrections = int(180 / angular_step) + 1
-        logging.info(f'Increased angular step to {angular_step}, with max corrections {max_corrections}')
+    # if delta_time > 1000:
+    #     angular_step = min(angular_step + 5, 45)
+    #     max_corrections = int(180 / angular_step) + 1
+    #     logging.info(f'Increased angular step to {angular_step}, with max corrections {max_corrections}')
 
     # Send our set of commands to the Halite engine for this turn
     game.send_command_queue(command_queue)
