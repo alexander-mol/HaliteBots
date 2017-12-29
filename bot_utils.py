@@ -145,6 +145,16 @@ def total_dist(alloc):
         dist += ship.calculate_distance_between(target)
     return dist
 
+def get_shortest_alloc(alloc):
+    min_dist = 1e10
+    item = None
+    for ship, target in alloc.items():
+        dist = ship.calculate_distance_between(target)
+        if dist < min_dist:
+            min_dist = dist
+            item = ship
+    return item
+
 def convert_command_to_position_delta(ship, string):
     parts = string.split(' ')
     magnitude = int(parts[2])
@@ -156,6 +166,8 @@ def convert_command_to_position_delta(ship, string):
 def get_central_entity(entities):
     if len(entities) == 0:
         return None
+    if len(entities) == 2:
+        return max(entities, key=lambda x: x.id)
     c = hlt.entity.Position(0, 0)
     for point in entities:
         c += point

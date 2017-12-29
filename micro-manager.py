@@ -10,20 +10,32 @@ game = hlt.Game("Micro-Manager")
 defensive_action_radius = 40  # enemy distance from planet that triggers defensive action
 max_response = 4  # maximum number of interceptors per enemy
 safe_docking_distance = 20  # minimum 'safe' distance from a planet to the nearest enemy
+zone_dominance_factor_for_docking = 2
+available_ships_for_rogue_mission_trigger = 12  # number of ships where loosing one isn't a disaster
 
-# dogfighting parameters
+# micro movement parameters
 general_approach_dist = 2  # 'closest point to' offset
-leader_approach_dist = 2
+leader_approach_dist = 1
 tether_dist = 3
-padding = 0.2  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
+padding = 0.1  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
+
 
 # navigation parameters
-angular_step = 1
-horizon_reduction_factor = 0.95
+angular_step = 5
+horizon_reduction_factor = 0.99
 max_corrections = int(90 / angular_step) + 1
 
 type_table = {}  # e.g. id -> string
 enemy_tracking = {}
+planet_ownership_changes = {}
+planet_owners = {}
+rogue_missions_id = {}
+
+# important lists to keep up-to-date:
+# - my_unassigned_ships
+# - packs
+# - my_free_navigation_ships
+# - tethered_followers
 
 t = 0
 while True:
@@ -36,6 +48,15 @@ while True:
     all_planets = game_map.all_planets()
     all_docked_ships = [ship for player in game_map.all_players() for ship in player.all_ships() if
                         ship.docking_status != hlt.entity.Ship.DockingStatus.UNDOCKED]
+    if t == 0:
+        for planet in all_planets:
+            planet_ownership_changes[planet.id] = 0
+            planet_owners[planet.id] = planet.owner
+
+    for planet in all_planets:
+        if planet.owner != planet_owners[planet.id]:
+            planet_owners[planet.id] = planet.owner
+            planet_ownership_changes[planet.id] += 1
 
     # collect my stuff
     my_fighting_ships = [ship for ship in game_map.get_me().all_ships() if
@@ -49,7 +70,7 @@ while True:
                                  planet.owner in [None, game_map.get_me()] and not planet.is_full()]
 
     # update type table
-    logging.info(f'all my ships: {all_my_ship_ids}')
+    logging.info(f'my unassigned ships: ({len(my_unassigned_ships)}) {[ship.id for ship in my_unassigned_ships]}')
     # remove dead guys
     for ship_id in list(type_table.keys()):
         if ship_id not in all_my_ship_ids:
@@ -86,55 +107,96 @@ while True:
     # 2 STRATEGIC CALCULATIONS & JOB CREATION - output: list good_opportunities
     good_to_dock_planets = \
         [planet for planet in non_full_friendly_planets
-         if bot_utils.get_proximity(planet, enemy_ships) > safe_docking_distance + planet.radius
-
-         or (planet.owner == game_map.get_me() and len(
-            bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius], enemy_ships)) < len(
-            bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius], my_unassigned_ships)))
-
-         or len(bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius],
-                                               my_unassigned_ships + my_planets))
-         > 2 * len(bot_utils.get_proximity_alerts([planet], [safe_docking_distance + planet.radius], enemy_ships))]
+         if bot_utils.get_proximity(planet, enemy_ships) > safe_docking_distance + planet.radius]
+         #
+         # or (planet.owner == game_map.get_me() and len(
+         #    bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius], enemy_ships)) < len(
+         #    bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius], my_unassigned_ships)))
+         #
+         # or len(bot_utils.get_proximity_alerts([planet], [defensive_action_radius + planet.radius],
+         #                                       my_unassigned_ships + my_planets))
+         # > len(bot_utils.get_proximity_alerts([planet], [safe_docking_distance + planet.radius],
+         #                                      enemy_ships)) * zone_dominance_factor_for_docking]
     logging.info(f'Good planets: {["P"+str(planet.id) for planet in good_to_dock_planets]}')
     logging.info(f'Time used for good planet determination: {timer.get_time()}')
+
+    potential_rogue_missions = []
+    if len(my_unassigned_ships) >= available_ships_for_rogue_mission_trigger:
+        for planet_id, changes in planet_ownership_changes.items():
+            if changes == 0:
+                potential_rogue_missions.append(game_map.get_planet(planet_id))
 
     good_dock_spots = []
     for planet in good_to_dock_planets:
         for _ in range(planet.num_docking_spots - len(planet.all_docked_ships())):
             good_dock_spots.append(planet)
 
-    good_opportunities = docked_enemy_ships + good_dock_spots
+    fighting_opportunities = docked_enemy_ships + proximal_enemy_ships
+    good_opportunities = good_dock_spots + (fighting_opportunities) * max_response
+    opportunities_logging = [f'P{op.id}' if isinstance(op, hlt.entity.Planet) else f'S{op.id}' for op in
+                             good_opportunities]
+    logging.info(f'opportunities: {opportunities_logging}')
 
     # 3 JOB ALLOCATION - output: dict orders
     # All orders are placed here - the eventual position may change later on due to position prediction
-    # planet defense calculations
-    # TODO: make this part of the strategic calculations and then let the allocation algorithm decide who does it
-    interceptors = {enemy: [] for enemy in proximal_enemy_ships}
     orders = {}
-    for ship in list(my_unassigned_ships):
-        if len(proximal_enemy_ships) > 0:
-            enemy = bot_utils.get_closest(ship, proximal_enemy_ships)
-            if ship.calculate_distance_between(enemy) < defensive_action_radius \
-                    and len(interceptors[enemy]) < max_response:
-                interceptors[enemy].append(ship)
-                my_unassigned_ships.remove(ship)
-                if len(interceptors[enemy]) >= max_response:
-                    proximal_enemy_ships.remove(enemy)
 
-    defensive_packs = {}
-    for enemy in interceptors:
-        if len(interceptors[enemy]) > 0:
-            pack_leader = bot_utils.get_central_entity(interceptors[enemy])
-            defensive_packs[pack_leader] = []
-            for ship in interceptors[enemy]:
-                if ship is pack_leader:
-                    orders[ship] = enemy
-                else:
-                    orders[ship] = pack_leader
-                    defensive_packs[pack_leader].append(ship)
-    tethered_followers = {leader: [] for leader in defensive_packs}
-    for leader in defensive_packs:
-        for follower in defensive_packs[leader]:
+    # handle rogue missions
+    if len(rogue_missions_id) > 0:
+        for ship_id, target in list(rogue_missions_id.items()):
+            ship = game_map.get_me().get_ship(ship_id)
+            if ship:
+                orders[ship] = target
+                my_unassigned_ships.remove(ship)  # ERRORS HERE WHEN THE ROGUE SHIP ACTUALLY FINISHES ITS MISSION
+            else:
+                # the ship died
+                planet_ownership_changes[rogue_missions_id[ship_id].id] += 1
+                del rogue_missions_id[ship_id]
+        logging.info(f'rogue_missions: {dict([(ship_id, planet.id) for ship_id, planet in rogue_missions_id.items()])}')
+    elif len(potential_rogue_missions) > 0:
+        alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, potential_rogue_missions)
+        rogue_ship = bot_utils.get_shortest_alloc(alloc)
+        orders[rogue_ship] = alloc[rogue_ship]
+        my_unassigned_ships.remove(rogue_ship)
+        rogue_missions_id[rogue_ship.id] = alloc[rogue_ship]
+
+    minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, good_opportunities)
+    logging_alloc = {f'S{ship.id}': f'P{target.id}' if isinstance(target, hlt.entity.Planet) else f'S{target.id}' for
+                     ship, target in minimal_dist_alloc.items()}
+    logging.info(f'Minimal dist alloc: {logging_alloc}')
+    logging.info(f'Time to calculate minimal distance job allocation: {timer.get_time()} ms')
+
+    # sort ships by type of objective
+    potential_packs = {fighting_opportunity: [] for fighting_opportunity in fighting_opportunities}
+    for ship, target in minimal_dist_alloc.items():
+        if target in fighting_opportunities:
+            potential_packs[target].append(ship)
+        elif target in good_dock_spots:
+            orders[ship] = target
+        my_unassigned_ships.remove(ship)
+    for ship in my_unassigned_ships:
+        enemy = bot_utils.get_closest(ship, enemy_ships)
+        orders[ship] = enemy
+
+    if len(my_unassigned_ships) > 0:
+        logging.info(f'Some ships were left unassigned: {[ship.id for ship in my_unassigned_ships]}')
+
+    # create packs from ships with the same objective
+    packs = {}
+    for target, pack in potential_packs.items():
+        if len(pack) > 1:
+            leader = bot_utils.get_closest(target, pack) # bot_utils.get_central_entity(pack)
+            packs[leader] = [ship for ship in pack if ship != leader]
+            orders[leader] = target
+            for ship in packs[leader]:
+                orders[ship] = leader
+        elif len(pack) == 1:
+            orders[pack[0]] = target
+
+    # determine which members of the pack should be tethered
+    tethered_followers = {leader: [] for leader in packs}
+    for leader in packs:
+        for follower in packs[leader]:
             if leader.calculate_distance_between(follower) < tether_dist:
                 tethered_followers[leader].append(follower)
                 my_free_navigation_ships.remove(follower)
@@ -142,25 +204,16 @@ while True:
         if len(followers) > 0:
             leader.radius = leader.calculate_distance_between(bot_utils.get_furthest(leader, followers)) + 0.5
 
-    minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, good_opportunities)
-    logging.info(f'Time to calculate minimal distance job allocation: {timer.get_time()} ms')
-    for ship in list(my_unassigned_ships):
-        if ship in minimal_dist_alloc:
-            orders[ship] = minimal_dist_alloc[ship]
-        else:
-            enemy = bot_utils.get_closest(ship, enemy_ships)
-            orders[ship] = enemy
-        my_unassigned_ships.remove(ship)
-
     # 4 LOGGING
     logging_orders = {}
     for ship, order in orders.items():
-        logging_orders[ship.id] = f'S{order.id}' if isinstance(order, hlt.entity.Ship) else f'P{order.id}'
+        logging_orders[f'S{ship.id}'] = f'S{order.id}' if isinstance(order, hlt.entity.Ship) else f'P{order.id}'
     logging.info(f'orders: {logging_orders}')
-    defensive_packs_logging = {}
-    for leader, followers in defensive_packs.items():
-        defensive_packs_logging[leader.id] = [ship.id for ship in followers]
-    logging.info(f'defensive_packs: {defensive_packs_logging}')
+    packs_logging = {}
+    for leader, followers in packs.items():
+        packs_logging[f'S{leader.id}'] = [f'(S{ship.id})' if ship in tethered_followers[leader] else f'S{ship.id}' for
+                                          ship in followers]
+    logging.info(f'packs: {packs_logging}')
 
     # 5 COMMAND GENERATION
     # prepare avoid_entities list
@@ -175,19 +228,25 @@ while True:
 
     # determine execution order
     execution_order = []
-    for ship in defensive_packs:
+    for ship in packs:
         execution_order.append(ship)
     for ship in my_free_navigation_ships:
         if ship not in execution_order:
             execution_order.append(ship)
 
+    logging_avoid_entities = [(entity.id, round(entity.x, 1), round(entity.y, 1), round(entity.radius, 1)) for entity in
+                              all_my_flying_obstacles]
+    logging.info(f'avoid_entities (before): {logging_avoid_entities}')
+
     command_queue = []
     for ship in execution_order:  # types of orders to expect: docking, go to enemy, go to leader, mimic leader
         if isinstance(orders[ship], hlt.entity.Planet) and ship.can_dock(orders[ship]):
             command_queue.append(ship.dock(orders[ship]))
+            if ship.id in rogue_missions_id:
+                del rogue_missions_id[ship.id]
         else:
             avoid_entities.remove(ship)
-            if orders[ship] in defensive_packs.keys():
+            if orders[ship] in packs.keys():
                 approach_dist = leader_approach_dist
             else:
                 approach_dist = general_approach_dist
@@ -207,71 +266,24 @@ while True:
             if command:
                 command_queue.append(command)
 
-                if ship in defensive_packs.keys():
-                    for follower in defensive_packs[ship]:
+                if ship in packs.keys():
+                    for follower in packs[ship]:
                         if follower in tethered_followers[ship]:
                             command_queue.append(f't {follower.id} {command.split(" ")[2]} {command.split(" ")[3]}')
 
                 new_position = bot_utils.convert_command_to_position_delta(ship, command) + ship
+                new_position.radius = ship.radius
             else:
                 new_position = ship
+            mid_point_position = (new_position + ship) / 2
+            mid_point_position.radius = ship.radius
             avoid_entities.append(new_position)
+            avoid_entities.append(mid_point_position)
             location_prediction[ship] = new_position
 
-    # # handle navigation of pack leaders and tethered followers
-    # for leader in list(defensive_packs):
-    #     avoid_entities.remove(leader)
-    #     command = leader.smart_navigate(
-    #         leader.closest_point_to(orders[leader], min_distance=general_approach_dist),
-    #         game_map,
-    #         hlt.constants.MAX_SPEED,
-    #         angular_step=angular_step,
-    #         max_corrections=max_corrections,
-    #         horizon_reduction_factor=horizon_reduction_factor,
-    #         padding=padding,
-    #         avoid_entities=avoid_entities)
-    #
-    #     if command:
-    #         command_queue.append(command)
-    #         delta = bot_utils.convert_command_to_position_delta(leader, command)
-    #         new_position = delta + leader
-    #         avoid_entities.append(new_position)
-    #         for follower in defensive_packs[leader]:
-    #             if follower in tethered_followers[leader]:
-    #                 command_queue.append(f't {follower.id} {command.split(" ")[2]} {command.split(" ")[3]}')
-    #             else:
-    #                 orders[follower] = new_position
-    #     else:
-    #         # if command fails, keep the previous position
-    #         avoid_entities.append(leader)
-    #     del orders[leader]
-    #
-    # # handle navigation for other ships
-    # for ship in list(orders):
-    #     if isinstance(orders[ship], hlt.entity.Planet) and ship.can_dock(orders[ship]):
-    #         command_queue.append(ship.dock(orders[ship]))
-    #     else:
-    #         avoid_entities.remove(ship)
-    #         if orders[ship] in defensive_packs:
-    #             approach_dist = leader_approach_dist
-    #         else:
-    #             approach_dist = general_approach_dist
-    #         command = ship.smart_navigate(
-    #             ship.closest_point_to(orders[ship], min_distance=approach_dist),
-    #             game_map,
-    #             hlt.constants.MAX_SPEED,
-    #             angular_step=angular_step,
-    #             max_corrections=max_corrections,
-    #             horizon_reduction_factor=horizon_reduction_factor,
-    #             padding=padding,
-    #             avoid_entities=avoid_entities)
-    #
-    #         if command:
-    #             command_queue.append(command)
-    #
-    #         del orders[ship]
-    #         new_position = bot_utils.convert_command_to_position_delta(ship, command) + ship
-    #         avoid_entities.append(new_position)
+    logging_avoid_entities = [(entity.id, round(entity.x, 1), round(entity.y, 1), round(entity.radius, 1)) for entity in
+                              all_my_flying_obstacles]
+    logging.info(f'avoid_entities (after): {logging_avoid_entities}')
 
     delta_time = timer.get_time()
     logging.info(f'Time to calculate trajectories: {delta_time} ms,'

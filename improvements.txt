@@ -1,35 +1,17 @@
-Hunter-builder
-
-Make a super aggressive guy to test against as well - 3 hunters
-
+IMPROVEMENTS
 
 Need more thought:
-- Make the ships go to the same planet at the start (faster generation of new guy)
-- A* search to find shortest paths
-- Can fly in formations when attacking - create a Formation entity which is made up of ships and has a radius etc. so
-    static - can move in unison - needs to define the 'target locations' of ships inside the formation depending on
-    size - can spontaneously create when ships are close anyways
-- Really try to intercept - predict path and make an isosceles triangle
 - Fail safe against super aggressive opponents (if they attack with 3 ships at the start...)
-- If ship is outnumbered by attackers it should seek safety - or kamikaze
-
-- Better routing using A* with graph building - and location prediction to avoid crashing own guys
-    - could pre-analyze the map to create the graph
-
-Serious:
-- need to target planets that are not the closest opportunity -> just one guy can turn the tide later on
-- if guy is outnumbered he should seek safety
-- consider targeting own dudes when they attack (create formation organically)
-- when attacking, should have support (e.g. when attacking docked ships)
-- really need to avoid self crashes
-- can make a probability of success model for various actions (docking at a spot, traveling to a spot) - using ML on past game data
-- job matrix in terms of benefit - ships on the LHS should also include 'packs'
-    - can express benefit in terms of rate of return on ship production rate delta discounted 2% per turn over the life
-    of the game x probability of success
 - tracking enemies over more time periods to estimate position better
+- upgrade 'good planet' definition using ellipses (planet center, closest enemy) radius ~(4 + 2)*7 ~ 56 only dock if more friendlies than enemies in there
+- Really try to intercept - predict path and make an isosceles triangle - also helps with pack formation
+- Use 'center' for attacks and 'closest' for defense
 
 Ready to implement:
-- in defense, select a leader, he targets the enemy, other guys follow the leader
-- if a ship decides to go for an attack opportunity, then he should be on a special list for other ships to follow
+- see what happens if you turn off everything relating to tethering
 - reduce throttling so that it only triggers at like 1750 or something
-- need additional throttling - for ships that are far away from the action - don't use them in job search and have them be zombies with navigate(ignore_ships=True)
+- implement optimal planet approach dist for guys going to planets (it is 3.5, so do 3.45)
+- turn off pack radius after finishing it's navigation for a turn - so other guys can join
+
+To categorize:
+- Pack leader shouldn't switch around - makes it inefficient
