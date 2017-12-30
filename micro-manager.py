@@ -15,10 +15,11 @@ available_ships_for_rogue_mission_trigger = 12  # number of ships where loosing 
 
 # micro movement parameters
 general_approach_dist = 2  # 'closest point to' offset
+planet_approach_dist = 3.45
 leader_approach_dist = 1
 tether_dist = 3
 padding = 0.1  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
-
+motion_ghost_points = 6
 
 # navigation parameters
 angular_step = 5
@@ -235,7 +236,7 @@ while True:
             execution_order.append(ship)
 
     logging_avoid_entities = [(entity.id, round(entity.x, 1), round(entity.y, 1), round(entity.radius, 1)) for entity in
-                              all_my_flying_obstacles]
+                              avoid_entities]
     logging.info(f'avoid_entities (before): {logging_avoid_entities}')
 
     command_queue = []
@@ -248,6 +249,8 @@ while True:
             avoid_entities.remove(ship)
             if orders[ship] in packs.keys():
                 approach_dist = leader_approach_dist
+            elif orders[ship] in all_planets:
+                approach_dist = planet_approach_dist
             else:
                 approach_dist = general_approach_dist
             if orders[ship] in location_prediction:
@@ -272,17 +275,19 @@ while True:
                             command_queue.append(f't {follower.id} {command.split(" ")[2]} {command.split(" ")[3]}')
 
                 new_position = bot_utils.convert_command_to_position_delta(ship, command) + ship
-                new_position.radius = ship.radius
+                new_position.radius = hlt.constants.SHIP_RADIUS  # so packs can allow others to join
             else:
                 new_position = ship
-            mid_point_position = (new_position + ship) / 2
-            mid_point_position.radius = ship.radius
+            # add motion ghost points
+            for i in range(1, motion_ghost_points + 1):
+                ghost_point_pos = (ship * (motion_ghost_points + 1 - i) + new_position * i) / (motion_ghost_points + 1)
+                ghost_point_pos.radius = hlt.constants.SHIP_RADIUS
+                avoid_entities.append(ghost_point_pos)
             avoid_entities.append(new_position)
-            avoid_entities.append(mid_point_position)
             location_prediction[ship] = new_position
 
     logging_avoid_entities = [(entity.id, round(entity.x, 1), round(entity.y, 1), round(entity.radius, 1)) for entity in
-                              all_my_flying_obstacles]
+                              avoid_entities]
     logging.info(f'avoid_entities (after): {logging_avoid_entities}')
 
     delta_time = timer.get_time()

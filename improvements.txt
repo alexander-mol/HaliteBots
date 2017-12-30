@@ -3,15 +3,19 @@ IMPROVEMENTS
 Need more thought:
 - Fail safe against super aggressive opponents (if they attack with 3 ships at the start...)
 - tracking enemies over more time periods to estimate position better
-- upgrade 'good planet' definition using ellipses (planet center, closest enemy) radius ~(4 + 2)*7 ~ 56 only dock if more friendlies than enemies in there
 - Really try to intercept - predict path and make an isosceles triangle - also helps with pack formation
 - Use 'center' for attacks and 'closest' for defense
+- Try to understand how our current nav algo works - why do packs sometimes stop completely? - is the distance_reduction_factor useful?
 
 Ready to implement:
-- see what happens if you turn off everything relating to tethering
-- reduce throttling so that it only triggers at like 1750 or something
-- implement optimal planet approach dist for guys going to planets (it is 3.5, so do 3.45)
+- see what happens if you turn off everything relating to tethering (play against version with tethering)
+- reduce throttling so that it only triggers at like 1750 or something - can also reduce ghost points
+- figure out how packs can have a size > 4 ? - is it because there was an enemy docked in the planet defense range?
 - turn off pack radius after finishing it's navigation for a turn - so other guys can join
 
 To categorize:
 - Pack leader shouldn't switch around - makes it inefficient
+
+Good planet - needs to improve:
+- don't target if you have guys there already
+- upgrade 'good planet' definition using ellipses (planet center, closest enemy) radius ~(4 + 2)*7 ~ 56 only dock if more friendlies than enemies in there
