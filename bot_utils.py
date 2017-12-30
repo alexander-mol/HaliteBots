@@ -114,25 +114,46 @@ def get_object_to_object_proximity_list(game_map, obj, f=None):
 
 def get_minimal_distance_allocation(from_list, to_list):
     """Tries to find the allocation with the minimum total distance by greedily matching the global minima"""
-    from_xs, from_ys = get_coordinate_arrays(from_list)
-    to_xs, to_ys = get_coordinate_arrays(to_list)
-    from_xs_matrix = np.tile(from_xs, (len(to_xs), 1))
-    to_xs_matrix = np.transpose(np.tile(to_xs, (len(from_xs), 1)))
-    from_ys_matrix = np.tile(from_ys, (len(to_xs), 1))
-    to_ys_matrix = np.transpose(np.tile(to_ys, (len(from_xs), 1)))
+    distances = get_distance_matrix(from_list, to_list)
+
+    optimal_alloc = {}
+    for _ in range(min(len(from_list), len(to_list))):
+        i = np.argmin(np.min(distances, 1))
+        j = np.argmin(np.min(distances, 0))
+        optimal_alloc[from_list[i]] = to_list[j]
+        distances[i, :] = np.inf
+        distances[:, j] = np.inf
+    return optimal_alloc
+
+
+def get_maximal_benefit_allocation(from_list, to_list, importance_factors, base_importance):
+    """Tries to find the allocation with the maximum total benefit by greedily matching the global maxima"""
+    distances = get_distance_matrix(from_list, to_list)
+    importance_factors = np.array(importance_factors)
+    benefits = (np.full((len(from_list), len(to_list)), base_importance) - distances) * importance_factors
+
+    optimal_alloc = {}
+    for _ in range(min(len(from_list), len(to_list))):
+        i = np.argmax(np.max(benefits, 1))
+        j = np.argmax(np.max(benefits, 0))
+        optimal_alloc[from_list[i]] = to_list[j]
+        benefits[i, :] = -np.inf
+        benefits[:, j] = -np.inf
+    return optimal_alloc
+
+
+def get_distance_matrix(from_objects, to_objects):
+    from_xs, from_ys = get_coordinate_arrays(from_objects)
+    to_xs, to_ys = get_coordinate_arrays(to_objects)
+    from_xs_matrix = np.transpose(np.tile(from_xs, (len(to_xs), 1)))
+    to_xs_matrix = np.tile(to_xs, (len(from_xs), 1))
+    from_ys_matrix = np.transpose(np.tile(from_ys, (len(to_xs), 1)))
+    to_ys_matrix = np.tile(to_ys, (len(from_xs), 1))
 
     delta_x2 = np.power(from_xs_matrix - to_xs_matrix, 2)
     delta_y2 = np.power(from_ys_matrix - to_ys_matrix, 2)
-    distances = np.sqrt(delta_x2 + delta_y2)
+    return np.sqrt(delta_x2 + delta_y2)
 
-    optimal_alloc = {}
-    for _ in range(min(len(from_xs), len(to_xs))):
-        i = np.argmin(np.min(distances, 0))
-        j = np.argmin(np.min(distances, 1))
-        optimal_alloc[from_list[i]] = to_list[j]
-        distances[:, i] = np.inf
-        distances[j, :] = np.inf
-    return optimal_alloc
 
 def get_coordinate_arrays(entities):
     xs = np.array([entity.x for entity in entities])
@@ -183,3 +204,10 @@ class Timer:
         dt = time.time() - self.t
         self.t = time.time()
         return round(dt*1000, 0)
+
+
+if __name__ == '__main__':
+    a = [hlt.entity.Position(0, 0), hlt.entity.Position(0, 1)]
+    b = [hlt.entity.Position(1, 0), hlt.entity.Position(1, 1), hlt.entity.Position(1, 2)]
+    print(get_distance_matrix(a, b))
+    print(get_maximal_benefit_allocation(a, b, [1, 1, 2], 10))

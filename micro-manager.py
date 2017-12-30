@@ -10,7 +10,8 @@ game = hlt.Game("Micro-Manager")
 defensive_action_radius = 40  # enemy distance from planet that triggers defensive action
 max_response = 4  # maximum number of interceptors per enemy
 safe_docking_distance = 20  # minimum 'safe' distance from a planet to the nearest enemy
-zone_dominance_factor_for_docking = 2
+job_base_benefit = 100
+fighting_relative_benefit = 1.7
 available_ships_for_rogue_mission_trigger = 12  # number of ships where loosing one isn't a disaster
 
 # micro movement parameters
@@ -25,6 +26,7 @@ motion_ghost_points = 6
 angular_step = 5
 horizon_reduction_factor = 0.99
 max_corrections = int(90 / angular_step) + 1
+use_unassigned_ships = True
 
 type_table = {}  # e.g. id -> string
 enemy_tracking = {}
@@ -132,8 +134,9 @@ while True:
         for _ in range(planet.num_docking_spots - len(planet.all_docked_ships())):
             good_dock_spots.append(planet)
 
-    fighting_opportunities = docked_enemy_ships + proximal_enemy_ships
-    good_opportunities = good_dock_spots + (fighting_opportunities) * max_response
+    fighting_opportunities = (docked_enemy_ships + proximal_enemy_ships) * max_response
+    good_opportunities = good_dock_spots + fighting_opportunities
+    relative_benefit_factors = [1] * len(good_dock_spots) + [fighting_relative_benefit] * len(fighting_opportunities)
     opportunities_logging = [f'P{op.id}' if isinstance(op, hlt.entity.Planet) else f'S{op.id}' for op in
                              good_opportunities]
     logging.info(f'opportunities: {opportunities_logging}')
@@ -161,7 +164,8 @@ while True:
         my_unassigned_ships.remove(rogue_ship)
         rogue_missions_id[rogue_ship.id] = alloc[rogue_ship]
 
-    minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, good_opportunities)
+    # minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, good_opportunities)
+    minimal_dist_alloc = bot_utils.get_maximal_benefit_allocation(my_unassigned_ships, good_opportunities, relative_benefit_factors, job_base_benefit)  # NOT MINIMAL DIST ALLOC
     logging_alloc = {f'S{ship.id}': f'P{target.id}' if isinstance(target, hlt.entity.Planet) else f'S{target.id}' for
                      ship, target in minimal_dist_alloc.items()}
     logging.info(f'Minimal dist alloc: {logging_alloc}')
@@ -176,8 +180,11 @@ while True:
             orders[ship] = target
         my_unassigned_ships.remove(ship)
     for ship in my_unassigned_ships:
-        enemy = bot_utils.get_closest(ship, enemy_ships)
-        orders[ship] = enemy
+        if use_unassigned_ships:
+            enemy = bot_utils.get_closest(ship, enemy_ships)
+            orders[ship] = enemy
+        else:
+            my_free_navigation_ships.remove(ship)
 
     if len(my_unassigned_ships) > 0:
         logging.info(f'Some ships were left unassigned: {[ship.id for ship in my_unassigned_ships]}')
@@ -235,9 +242,9 @@ while True:
         if ship not in execution_order:
             execution_order.append(ship)
 
-    logging_avoid_entities = [(entity.id, round(entity.x, 1), round(entity.y, 1), round(entity.radius, 1)) for entity in
-                              avoid_entities]
-    logging.info(f'avoid_entities (before): {logging_avoid_entities}')
+    # logging_avoid_entities = [(entity.id, round(entity.x, 1), round(entity.y, 1), round(entity.radius, 1)) for entity in
+    #                           avoid_entities]
+    # logging.info(f'avoid_entities (before): {logging_avoid_entities}')
 
     command_queue = []
     for ship in execution_order:  # types of orders to expect: docking, go to enemy, go to leader, mimic leader
@@ -275,28 +282,37 @@ while True:
                             command_queue.append(f't {follower.id} {command.split(" ")[2]} {command.split(" ")[3]}')
 
                 new_position = bot_utils.convert_command_to_position_delta(ship, command) + ship
-                new_position.radius = hlt.constants.SHIP_RADIUS  # so packs can allow others to join
+                new_position.radius = ship.radius
             else:
                 new_position = ship
             # add motion ghost points
             for i in range(1, motion_ghost_points + 1):
                 ghost_point_pos = (ship * (motion_ghost_points + 1 - i) + new_position * i) / (motion_ghost_points + 1)
-                ghost_point_pos.radius = hlt.constants.SHIP_RADIUS
+                ghost_point_pos.radius = ship.radius
                 avoid_entities.append(ghost_point_pos)
             avoid_entities.append(new_position)
             location_prediction[ship] = new_position
 
-    logging_avoid_entities = [(entity.id, round(entity.x, 1), round(entity.y, 1), round(entity.radius, 1)) for entity in
-                              avoid_entities]
-    logging.info(f'avoid_entities (after): {logging_avoid_entities}')
+    # logging_avoid_entities = [(entity.id, round(entity.x, 1), round(entity.y, 1), round(entity.radius, 1)) for entity in
+    #                           avoid_entities]
+    # logging.info(f'avoid_entities (after): {logging_avoid_entities}')
 
     delta_time = timer.get_time()
     logging.info(f'Time to calculate trajectories: {delta_time} ms,'
                  f'time per ship: {round(delta_time / (len(my_fighting_ships)+1), 0)} ms')
-    # if delta_time > 1000:
-    #     angular_step = min(angular_step + 5, 45)
-    #     max_corrections = int(180 / angular_step) + 1
-    #     logging.info(f'Increased angular step to {angular_step}, with max corrections {max_corrections}')
+
+    # calculation speed throttling
+    if delta_time > 1000:
+        if motion_ghost_points > 2:
+            motion_ghost_points -= 1
+            logging.info(f'Decreased motion ghosting to {motion_ghost_points}')
+        elif angular_step < 30:
+            angular_step += 5
+            max_corrections = int(90 / angular_step) + 1
+            logging.info(f'Increased angular step to {angular_step}, with max corrections {max_corrections}')
+        elif use_unassigned_ships:
+            use_unassigned_ships = False
+            logging.info(f'Set use_unassigned_ships to FALSE')
 
     # Send our set of commands to the Halite engine for this turn
     game.send_command_queue(command_queue)

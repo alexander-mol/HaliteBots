@@ -1,7 +1,6 @@
 IMPROVEMENTS
 
 Need more thought:
-- Fail safe against super aggressive opponents (if they attack with 3 ships at the start...)
 - tracking enemies over more time periods to estimate position better
 - Really try to intercept - predict path and make an isosceles triangle - also helps with pack formation
 - Use 'center' for attacks and 'closest' for defense
@@ -10,8 +9,10 @@ Need more thought:
 Ready to implement:
 - see what happens if you turn off everything relating to tethering (play against version with tethering)
 - reduce throttling so that it only triggers at like 1750 or something - can also reduce ghost points
-- figure out how packs can have a size > 4 ? - is it because there was an enemy docked in the planet defense range?
+    - consider calculating: nav calc time / (fighting ships * num obstacles (final)) - this may be a good predictor
+- figure out how packs can have a size > 4 ? - is it because there was an enemy docked in the planet defense range? - maybe fix this (packs too big)
 - turn off pack radius after finishing it's navigation for a turn - so other guys can join
+- calculation metric to speed up improvement process: keep track of total lost health from non docked guys on both sides
 
 To categorize:
 - Pack leader shouldn't switch around - makes it inefficient
@@ -19,3 +20,9 @@ To categorize:
 Good planet - needs to improve:
 - don't target if you have guys there already
 - upgrade 'good planet' definition using ellipses (planet center, closest enemy) radius ~(4 + 2)*7 ~ 56 only dock if more friendlies than enemies in there
+
+
+MAP SEEDS
+Micro-Manager v 3 x Interceptor:
+- 74850485 - difficult for player 0, 2 - Micro-Manger rank: 3 with benefit factor 1, 1.7
+- 550078535 - Micro-Manger rank: 4 - docking too aggressively - beaten with benefit_factor = 2
