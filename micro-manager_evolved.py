@@ -8,14 +8,14 @@ game = hlt.Game("Micro-Manager-Evolved")
 # PARAMETERS
 # strategic parameters
 defensive_action_radius = 33.2
-max_response = 4
+max_response = 5
 safe_docking_distance = 10.9
 job_base_benefit = 80.7
-fighting_relative_benefit = 1.2
-available_ships_for_rogue_mission_trigger = 13
+fighting_relative_benefit = 1.5
+available_ships_for_rogue_mission_trigger = 12
 
 # micro movement parameters
-general_approach_dist = 4.2
+general_approach_dist = 3.7
 planet_approach_dist = 3.46
 leader_approach_dist = 0.8
 tether_dist = 2.0

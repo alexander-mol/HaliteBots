@@ -7,11 +7,6 @@ Need more thought:
 - Try to understand how our current nav algo works - why do packs sometimes stop completely? - is the distance_reduction_factor useful?
 
 Ready to implement:
-- see what happens if you turn off everything relating to tethering (play against version with tethering)
-- reduce throttling so that it only triggers at like 1750 or something - can also reduce ghost points
-    - consider calculating: nav calc time / (fighting ships * num obstacles (final)) - this may be a good predictor
-- figure out how packs can have a size > 4 ? - is it because there was an enemy docked in the planet defense range? - maybe fix this (packs too big)
-- turn off pack radius after finishing it's navigation for a turn - so other guys can join
 - calculation metric to speed up improvement process: keep track of total lost health from non docked guys on both sides
 
 To categorize:

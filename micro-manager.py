@@ -8,14 +8,14 @@ game = hlt.Game("Micro-Manager")
 # PARAMETERS
 # strategic parameters
 defensive_action_radius = 33.2  # enemy distance from planet that triggers defensive action
-max_response = 4  # maximum number of interceptors per enemy
+max_response = 5  # maximum number of interceptors per enemy
 safe_docking_distance = 10.9  # minimum 'safe' distance from a planet to the nearest enemy
 job_base_benefit = 80.7
-fighting_relative_benefit = 1.2
-available_ships_for_rogue_mission_trigger = 13  # number of ships where loosing one isn't a disaster
+fighting_relative_benefit = 1.5
+available_ships_for_rogue_mission_trigger = 12  # number of ships where loosing one isn't a disaster
 
 # micro movement parameters
-general_approach_dist = 4.2
+general_approach_dist = 3.7
 planet_approach_dist = 3.46
 leader_approach_dist = 0.8
 tether_dist = 2.0

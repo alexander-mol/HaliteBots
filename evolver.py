@@ -5,40 +5,56 @@ import copy
 import random
 import time
 import _pickle
+import scipy.stats
 
+# evolutionary algorithm parameters
 pop_size = 8
 num_generations = 8
 fitness_num_games = 25
 mutation_rate = 0.4
 mutation_magnitude = 0.3
+
+# map parameters
 map_width = 288
 map_height = 192
 
-logging.basicConfig(filename='./evolver_log')
+# competing bots
+evolving_bot = 'micro-manager_evolved.py'
+comparison_bot = 'micro-manager.py'
+
+
+t0 = time.time()
+logging.basicConfig(level=logging.INFO, filename='./evolver_log', filemode='w')
+logger = logging.getLogger(__name__)
 
 path = '/Users/student/Desktop/Local Files/Projects/Halite2_Python3_MacOS/halite'
-query = ['-d', f'{map_width} {map_height}', "python3 micro-manager_evolved.py", "python3 micro-manager.py"]
+query = ['-d', f'{map_width} {map_height}', f'python3 {evolving_bot}', f'python3 {comparison_bot}']
 single_game_query = [path] + query
 
 def run_game(id=None):
     result = subprocess.run(single_game_query, stdout=subprocess.PIPE).stdout.decode('utf-8')
-    try:
-        rank = re.findall('Player #0, .*?, came in rank #(.*?) and', result)[0]
-        return rank == '1'
-    except:
-        if id:
-            logging.info(f'id: {id}')
-        print(re.sub('Turn (.*?)\n', '', result))
-        return False
+    rank = re.findall('Player #0, .*?, came in rank #(.*?) and', result)[0]
+    logger.info(re.sub('Turn (.*?)\n', '', result))
+    return rank == '1'
 
-def get_fitness(num_games, id=None):
+def get_fitness(num_games, id=None, feedback=False):
     win_count = 0
     for i in range(num_games):
         if id:
             i = id + str(i)
         if run_game(i):
             win_count += 1
+        if feedback:
+            print(f'At game {i+1} of {num_games}. Target won {win_count} / {i+1}, '
+                  f'or {round(100*win_count/(i+1))}%. p(H0) = {get_p_null_hypothesis(win_count, i+1)}, '
+                  f'running average time per game: {round((time.time() - t0)/(i+1), 1)}')
     return win_count / num_games
+
+def get_p_null_hypothesis(successes, num_samples):
+    p = 0
+    for i in range(successes, num_samples + 1):
+        p += scipy.stats.binom(num_samples, 0.5).pmf(i)
+    return round(p, 3)
 
 def set_params(params_dict, with_round=False):
     with open('micro-manager_evolved.py', 'r') as f:
@@ -78,7 +94,6 @@ def run_evolution():
 
     mid_point = round(pop_size / 2)
 
-    t0 = time.time()
     t = time.time()
     for gen_i in range(num_generations):
 
@@ -94,18 +109,19 @@ def run_evolution():
         # sort
         pop.sort(key=lambda x: -x[1])
 
+        # store results
+        with open('pop_cache.p', 'wb') as f:
+            _pickle.dump(pop, f)
+
         # generate new individuals
         for i in range(mid_point, len(pop)):
             father_i = random.randint(0, mid_point-1)
             mother_i = random.randint(0, mid_point-1)
             pop[i] = (combine(pop[father_i][0], pop[mother_i][0]), None)
 
-        with open('pop_cache.p', 'wb') as f:
-            _pickle.dump(pop, f)
         print(f'Gen {gen_i}, {round(time.time() - t)} s, max_fitness = {pop[0][1]} using: {pop[0][0]}')
         t = time.time()
     print(f'Finished in {round(t - t0)} s, or {round((t - t0)/(pop_size * num_generations * fitness_num_games), 1)} per game.')
 
-run_evolution()
-# set_params({'defensive_action_radius': 33.22346939590352, 'max_response': 4, 'safe_docking_distance': 10.905369014309452, 'job_base_benefit': 80.74621336507236, 'fighting_relative_benefit': 1.1943799665409098, 'available_ships_for_rogue_mission_trigger': 13, 'general_approach_dist': 4.18437790908138, 'planet_approach_dist': 3.4615527769250996, 'leader_approach_dist': 0.7759324752156381, 'tether_dist': 1.9767495471214407, 'padding': 0.14276624784331843, 'motion_ghost_points': 4},
-#            with_round=True)
+# run_evolution()
+print(get_fitness(200, feedback=True))
