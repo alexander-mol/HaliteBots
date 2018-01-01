@@ -158,22 +158,22 @@ while True:
                 del rogue_missions_id[ship_id]
         logging.info(f'rogue_missions: {dict([(ship_id, planet.id) for ship_id, planet in rogue_missions_id.items()])}')
     elif len(potential_rogue_missions) > 0:
-        alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, potential_rogue_missions)
-        rogue_ship = bot_utils.get_shortest_alloc(alloc)
-        orders[rogue_ship] = alloc[rogue_ship]
+        min_dist_alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, potential_rogue_missions)
+        rogue_ship = bot_utils.get_shortest_alloc(min_dist_alloc)
+        orders[rogue_ship] = min_dist_alloc[rogue_ship]
         my_unassigned_ships.remove(rogue_ship)
-        rogue_missions_id[rogue_ship.id] = alloc[rogue_ship]
+        rogue_missions_id[rogue_ship.id] = min_dist_alloc[rogue_ship]
 
     # minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, good_opportunities)
-    minimal_dist_alloc = bot_utils.get_maximal_benefit_allocation(my_unassigned_ships, good_opportunities, relative_benefit_factors, job_base_benefit)  # NOT MINIMAL DIST ALLOC
+    alloc = bot_utils.get_maximal_benefit_allocation(my_unassigned_ships, good_opportunities, relative_benefit_factors, job_base_benefit)  # NOT MINIMAL DIST ALLOC
     logging_alloc = {f'S{ship.id}': f'P{target.id}' if isinstance(target, hlt.entity.Planet) else f'S{target.id}' for
-                     ship, target in minimal_dist_alloc.items()}
+                     ship, target in alloc.items()}
     logging.info(f'Minimal dist alloc: {logging_alloc}')
     logging.info(f'Time to calculate minimal distance job allocation: {timer.get_time()} ms')
 
     # sort ships by type of objective
     potential_packs = {fighting_opportunity: [] for fighting_opportunity in fighting_opportunities}
-    for ship, target in minimal_dist_alloc.items():
+    for ship, target in alloc.items():
         if target in fighting_opportunities:
             potential_packs[target].append(ship)
         elif target in good_dock_spots:

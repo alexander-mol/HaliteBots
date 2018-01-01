@@ -5,9 +5,15 @@ Need more thought:
 - Really try to intercept - predict path and make an isosceles triangle - also helps with pack formation
 - Use 'center' for attacks and 'closest' for defense
 - Try to understand how our current nav algo works - why do packs sometimes stop completely? - is the distance_reduction_factor useful?
+- calculation metric to speed up improvement process: keep track of total lost health from non docked guys on both sides
 
 Ready to implement:
-- calculation metric to speed up improvement process: keep track of total lost health from non docked guys on both sides
+- Kamikaze for low health guys (if health below trigger level, and enemy is nearby (within 7) then target the enemy with approach = 0
+    - have a list of 'kamikaze ships' which gets filled in job allocation - then in determining approach dist - check if in kamikaze list
+    - use my_free_ships after tether determination
+- Also a different relative benefit factor for docking at empty planets
+- If outnumbered - should seek safety
+- Do more analysis on 4 person maps
 
 To categorize:
 - Pack leader shouldn't switch around - makes it inefficient
