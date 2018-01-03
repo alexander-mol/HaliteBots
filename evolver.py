@@ -8,15 +8,15 @@ import _pickle
 import scipy.stats
 
 # evolutionary algorithm parameters
-pop_size = 12
-num_generations = 100
-fitness_num_games = 16
-mutation_rate = 0.5
-mutation_magnitude = 0.5
+pop_size = 2
+num_generations = 200
+fitness_num_games = 100
+mutation_rate = 0.2
+mutation_magnitude = 0.15
 
 # map parameters
-map_width = 300  # 288
-map_height = 200  # 192
+map_width = 288  # 288
+map_height = 192  # 192
 
 # competing bots
 evolving_bot = 'micro-manager_evolved.py'
@@ -35,31 +35,46 @@ def get_query(i):
     query = ['-d', f'{map_width} {map_height}', f'python3 {bot1}', f'python3 {bot2}']
     return [path] + query, 0 if bot1 == evolving_bot else 1
 
+
 def run_game(i):
     query, target_pos = get_query(i)
     result = subprocess.run(query, stdout=subprocess.PIPE).stdout.decode('utf-8')
     rank = re.findall(f'Player #{target_pos}, .*?, came in rank #(.*?) and', result)[0]
+    ship_prod = re.findall(f'producing (\d*?) ships', result)
     logger.info(re.sub('Turn (.*?)\n', '', result))
-    return rank == '1'
+    return rank == '1', int(ship_prod[i % 2]), int(ship_prod[(i + 1) % 2])
 
-def get_fitness(num_games, id=None, feedback=False):
+
+def get_fitness(num_games, id=None, feedback=False, early_stop=False, early_stop_trigger=0.05):
     win_count = 0
+    ships_target, ships_opponent = 0, 0
     for i in range(num_games):
         if id:
             i = id + str(i)
-        if run_game(i):
-            win_count += 1
+        outcome, ships_t, ships_o = run_game(i)
+        win_count += outcome
+        ships_target += ships_t
+        ships_opponent += ships_o
+        ph0 = get_p_null_hypothesis(win_count, i + 1)
         if feedback:
             print(f'At game {i+1} of {num_games}. Target won {win_count} / {i+1}, '
-                  f'or {round(100*win_count/(i+1))}%. p(H0) = {get_p_null_hypothesis(win_count, i+1)}, '
-                  f'running average time per game: {round((time.time() - t0)/(i+1), 1)}')
-    return win_count / num_games
+                  f'or {round(100*win_count/(i+1))}%. p(H0) = {ph0}, '
+                  f'running average time per game: {round((time.time() - t0)/(i+1), 1)}. Ships produced by target '
+                  f'{ships_target} vs {ships_opponent} for opponent, proportion: '
+                  f'{round(ships_target / (ships_opponent + ships_target + 1), 2)}')
+        if ph0 > 1 - early_stop_trigger and i >= 19:
+            logging.info(
+                f'Made early stop after {i} games (target won {win_count}). Probability of null hypothesis: {ph0}')
+            break
+    return win_count / num_games, ships_target / (ships_opponent + ships_target + 1)
+
 
 def get_p_null_hypothesis(successes, num_samples):
     p = 0
     for i in range(successes, num_samples + 1):
         p += scipy.stats.binom(num_samples, 0.5).pmf(i)
     return round(p, 3)
+
 
 def set_params(params_dict, with_round=False):
     with open('micro-manager_evolved.py', 'r') as f:
@@ -74,6 +89,7 @@ def set_params(params_dict, with_round=False):
     with open('micro-manager_evolved.py', 'w') as f:
         f.write(script)
 
+
 def mutate(dna):
     for key, value in dna.items():
         if random.random() < mutation_rate:
@@ -82,6 +98,7 @@ def mutate(dna):
             else:
                 value *= 1 + (2 * random.random() - 1) * mutation_magnitude
         dna[key] = value
+
 
 def combine(dna1, dna2):
     dna_new = {}
@@ -92,17 +109,33 @@ def combine(dna1, dna2):
             dna_new[key] = dna2[key]
     return dna_new
 
-def run_evolution():
+
+def run_evolution(use_cache=False):
     # initialize pop
-    base_params = {'defensive_action_radius': 33.22346939590352, 'max_response': 4, 'safe_docking_distance': 15.90991149809392, 'job_base_benefit': 79.7295501179922, 'fighting_relative_benefit': 1.572854795198809, 'available_ships_for_rogue_mission_trigger': 12, 'zone_dominance_factor_for_docking': 2.0, 'general_approach_dist': 2.842128273421315, 'planet_approach_dist': 2.427450916328799, 'leader_approach_dist': 0.7613118205454873, 'tether_dist': 2.3797253838512864, 'padding': 0.11081714461786406, 'motion_ghost_points': 6}
-    with open('pop_cache.p', 'rb') as f:
-        pop_cache = _pickle.load(f)
-    pop = []
-    for i in range(pop_size):
-        if i < len(pop_cache):
-            pop.append(pop_cache[i])
-        else:
-            pop.append((copy.copy(base_params), None))
+    base_params = {'defensive_action_radius': 33.2, 'max_response': 5,
+                   'safe_docking_distance': 10.9, 'job_base_benefit': 80.7,
+                   'attacking_relative_benefit': 1.5, 'defending_relative_benefit': 1.5,
+                   'available_ships_for_rogue_mission_trigger': 12,
+                   'zone_dominance_factor_for_docking': 10, 'general_approach_dist': 3.7,
+                   'dogfighting_approach_dist': 3.7,
+                   'planet_approach_dist': 3.46, 'leader_approach_dist': 0.8,
+                   'tether_dist': 2.0, 'padding': 0.14}
+    # if use_cache:
+    #     with open('pop_cache.p', 'rb') as f:
+    #         pop_cache = _pickle.load(f)
+    # else:
+    #     pop_cache = []
+    # pop = []
+    # for i in range(pop_size):
+    #     if i < len(pop_cache):
+    #         pop.append(pop_cache[i])
+    #     else:
+    #         pop.append((copy.copy(base_params), None))
+    #
+    # for i, ind in enumerate(pop):
+    #     set_params(ind[0])
+    #     pop[i] = (ind[0], get_fitness(fitness_num_games)[0])
+    pop = [(base_params, 0.5), (base_params, None)]
 
     mid_point = round(pop_size / 2)
 
@@ -116,7 +149,7 @@ def run_evolution():
         # fitness
         for i, ind in enumerate(pop[mid_point:]):
             set_params(ind[0])
-            pop[mid_point + i] = (ind[0], get_fitness(fitness_num_games))
+            pop[mid_point + i] = (ind[0], get_fitness(fitness_num_games, early_stop=True)[0])
 
         # sort
         pop.sort(key=lambda x: -x[1])
@@ -127,13 +160,15 @@ def run_evolution():
 
         # generate new individuals
         for i in range(mid_point, len(pop)):
-            father_i = random.randint(0, mid_point-1)
-            mother_i = random.randint(0, mid_point-1)
+            father_i = random.randint(0, mid_point - 1)
+            mother_i = random.randint(0, mid_point - 1)
             pop[i] = (combine(pop[father_i][0], pop[mother_i][0]), None)
 
         print(f'Gen {gen_i}, {round(time.time() - t)} s, max_fitness = {pop[0][1]} using: {pop[0][0]}')
         t = time.time()
-    print(f'Finished in {round(t - t0)} s, or {round((t - t0)/(pop_size * num_generations * fitness_num_games), 1)} per game.')
+    print(
+        f'Finished in {round(t - t0)} s, or {round((t - t0)/(pop_size * num_generations * fitness_num_games), 1)} per game.')
+
 
 # run_evolution()
-print(get_fitness(100, feedback=True))
+print(get_fitness(200, feedback=True))

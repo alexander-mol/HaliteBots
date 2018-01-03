@@ -7,26 +7,28 @@ game = hlt.Game("Micro-Manager-Evolved")
 
 # PARAMETERS
 # strategic parameters
-defensive_action_radius = 26.0
-max_response = 4
-safe_docking_distance = 16.8
-job_base_benefit = 72.2
-fighting_relative_benefit = 1.65
-available_ships_for_rogue_mission_trigger = 15
-zone_dominance_factor_for_docking = 1.2
+defensive_action_radius = 34.6
+max_response = 5
+safe_docking_distance = 12.5
+job_base_benefit = 81.3
+attacking_relative_benefit = 1.5
+defending_relative_benefit = 1.5
+available_ships_for_rogue_mission_trigger = 13
+zone_dominance_factor_for_docking = 10
 
 # micro movement parameters
-general_approach_dist = 6.07
-planet_approach_dist = 1.5
-leader_approach_dist = 1.03
-tether_dist = 1.73
-padding = 0.09  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
-motion_ghost_points = 6
+general_approach_dist = 3.7
+dogfighting_approach_dist = 3.7
+planet_approach_dist = 3.46
+leader_approach_dist = 0.77
+tether_dist = 1.81
+padding = 0.14
 
 # navigation parameters
 angular_step = 5
 horizon_reduction_factor = 0.99
 max_corrections = int(90 / angular_step) + 1
+motion_ghost_points = 6
 use_unassigned_ships = True
 
 type_table = {}  # e.g. id -> string
@@ -95,11 +97,14 @@ while True:
                                                    hlt.entity.Ship.DockingStatus.DOCKED]]
 
     enemy_tracking_new = {enemy.id: hlt.entity.Position(enemy.x, enemy.y) for enemy in enemy_ships}
+    mobile_enemies = []
     location_prediction = {}
     for enemy_id in enemy_tracking_new:
         if enemy_id in enemy_tracking:
             enemy = [enemy for enemy in enemy_ships if enemy.id == enemy_id][0]
             location_prediction[enemy] = (2 * enemy_tracking_new[enemy_id] - enemy_tracking[enemy_id])
+            if (location_prediction[enemy] - enemy).calculate_distance_between(hlt.entity.Position(0, 0)) < 0.1:
+                mobile_enemies.append(enemy)
     enemy_tracking = enemy_tracking_new
 
     planet_defense_radii = [planet.radius + defensive_action_radius for planet in my_planets]
@@ -132,7 +137,9 @@ while True:
 
     fighting_opportunities = (docked_enemy_ships + proximal_enemy_ships) * max_response
     good_opportunities = good_dock_spots + fighting_opportunities
-    relative_benefit_factors = [1] * len(good_dock_spots) + [fighting_relative_benefit] * len(fighting_opportunities)
+    relative_benefit_factors = [1] * len(good_dock_spots) \
+                               + [attacking_relative_benefit] * len(docked_enemy_ships) * max_response \
+                               + [defending_relative_benefit] * len(proximal_enemy_ships) * max_response
     opportunities_logging = [f'P{op.id}' if isinstance(op, hlt.entity.Planet) else f'S{op.id}' for op in
                              good_opportunities]
     logging.info(f'opportunities: {opportunities_logging}')
@@ -161,7 +168,8 @@ while True:
         rogue_missions_id[rogue_ship.id] = min_dist_alloc[rogue_ship]
 
     # minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, good_opportunities)
-    alloc = bot_utils.get_maximal_benefit_allocation(my_unassigned_ships, good_opportunities, relative_benefit_factors, job_base_benefit)  # NOT MINIMAL DIST ALLOC
+    alloc = bot_utils.get_maximal_benefit_allocation(my_unassigned_ships, good_opportunities, relative_benefit_factors,
+                                                     job_base_benefit)  # NOT MINIMAL DIST ALLOC
     logging_alloc = {f'S{ship.id}': f'P{target.id}' if isinstance(target, hlt.entity.Planet) else f'S{target.id}' for
                      ship, target in alloc.items()}
     logging.info(f'Minimal dist alloc: {logging_alloc}')
@@ -189,7 +197,7 @@ while True:
     packs = {}
     for target, pack in potential_packs.items():
         if len(pack) > 1:
-            leader = bot_utils.get_closest(target, pack) # bot_utils.get_central_entity(pack)
+            leader = bot_utils.get_closest(target, pack)  # bot_utils.get_central_entity(pack)
             packs[leader] = [ship for ship in pack if ship != leader]
             orders[leader] = target
             for ship in packs[leader]:
@@ -250,6 +258,8 @@ while True:
                 approach_dist = leader_approach_dist
             elif orders[ship] in all_planets:
                 approach_dist = planet_approach_dist
+            elif orders[ship] in mobile_enemies:
+                approach_dist = dogfighting_approach_dist
             else:
                 approach_dist = general_approach_dist
             if orders[ship] in location_prediction:
@@ -294,7 +304,7 @@ while True:
         if motion_ghost_points > 2:
             motion_ghost_points -= 1
             logging.info(f'Decreased motion ghosting to {motion_ghost_points}')
-        elif angular_step < 30:
+        elif angular_step < 45:
             angular_step += 5
             max_corrections = int(90 / angular_step) + 1
             logging.info(f'Increased angular step to {angular_step}, with max corrections {max_corrections}')
