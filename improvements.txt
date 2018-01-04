@@ -3,20 +3,29 @@ IMPROVEMENTS
 Need more thought:
 - tracking enemies over more time periods to estimate position better
 - Really try to intercept - predict path and make an isosceles triangle - also helps with pack formation
-- Use 'center' for attacks and 'closest' for defense
 - Try to understand how our current nav algo works - why do packs sometimes stop completely? - is the distance_reduction_factor useful?
-- calculation metric to speed up improvement process: keep track of total lost health from non docked guys on both sides
-
-Ready to implement:
 - Kamikaze for low health guys (if health below trigger level, and enemy is nearby (within 7) then target the enemy with approach = 0
     - have a list of 'kamikaze ships' which gets filled in job allocation - then in determining approach dist - check if in kamikaze list
     - use my_free_ships after tether determination
-- Also a different relative benefit factor for docking at empty planets
-- If outnumbered - should seek safety
+
+NOTE:
+MOBILE ENEMIES WAS BEING CALCULATED INCORRECTLY "<" instead of ">" (hence why dogfighting approach didn't work)
+- That means the 'safety' strategy made guys go bonkers when they attacked docked enemies
+- If improvements seem worse than before go back to this error and try to find out why it works...
+
+Important:
 - Do more analysis on 4 person maps
+- Make it so guys hide in the corner when all hope is lost (only relevant on 4 person maps)
+- Planets should get a relative benefit factor based on distance from center of map
+    - maybe just different benefit factor if center of map 2 x 2 planets - keep things simple
+- Build fail safe for overly aggressive opponents - if opp tries to rush - then need make a super compact defensive formation that moves away from the attackers
+- Seek safety can be optimized:
+    - if enemies nearby (within 10) go to base - is really surprisingly powerful, but too conservative
+    - NEED TO HAVE A POWER RATIO (MAYBE BASED ON TOTAL HEALTH) AND OPTIMIZE THIS - the strategy above uses ratio ~inf,
+        while my decent safety strategy uses ratio ~1.01 (need to actually use ratio)
 
 To categorize:
-- Pack leader shouldn't switch around - makes it inefficient
+
 
 Good planet - needs to improve:
 - don't target if you have guys there already

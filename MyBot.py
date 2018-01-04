@@ -3,7 +3,7 @@ import bot_utils
 import logging
 import copy
 
-game = hlt.Game("Micro-Manager-SS")
+game = hlt.Game("Micro-Manager")
 
 # PARAMETERS
 # strategic parameters
@@ -15,13 +15,11 @@ attacking_relative_benefit = 1.5
 defending_relative_benefit = 1.5
 available_ships_for_rogue_mission_trigger = 12   # number of ships where loosing one isn't a disaster
 zone_dominance_factor_for_docking = 10
-safety_check_radius = 10.0
-attack_superiority_ratio = 2.1
 
 # micro movement parameters
 general_approach_dist = 3.7
 dogfighting_approach_dist = 3.7
-planet_approach_dist = 3.45
+planet_approach_dist = 3.46
 leader_approach_dist = 0.77
 tether_dist = 1.81
 padding = 0.14   # standard padding added to obstacle radii (helps to prevent unwanted crashes)
@@ -67,8 +65,6 @@ while True:
             planet_ownership_changes[planet.id] += 1
 
     # collect my stuff
-    my_docked_ships = [ship for ship in game_map.get_me().all_ships() if
-                       ship.docking_status != hlt.entity.Ship.DockingStatus.UNDOCKED]
     my_fighting_ships = [ship for ship in game_map.get_me().all_ships() if
                          ship.docking_status == hlt.entity.Ship.DockingStatus.UNDOCKED]
     my_unassigned_ships = copy.copy(my_fighting_ships)
@@ -107,7 +103,7 @@ while True:
         if enemy_id in enemy_tracking:
             enemy = [enemy for enemy in enemy_ships if enemy.id == enemy_id][0]
             location_prediction[enemy] = (2 * enemy_tracking_new[enemy_id] - enemy_tracking[enemy_id])
-            if (location_prediction[enemy] - enemy).calculate_distance_between(hlt.entity.Position(0, 0)) > 0.1:
+            if (location_prediction[enemy] - enemy).calculate_distance_between(hlt.entity.Position(0, 0)) < 0.1:
                 mobile_enemies.append(enemy)
     enemy_tracking = enemy_tracking_new
 
@@ -156,25 +152,24 @@ while True:
     if len(rogue_missions_id) > 0:
         for ship_id, target in list(rogue_missions_id.items()):
             ship = game_map.get_me().get_ship(ship_id)
-            if ship in my_unassigned_ships:
+            if ship:
                 orders[ship] = target
-                my_unassigned_ships.remove(ship)
+                my_unassigned_ships.remove(ship)  # ERRORS HERE WHEN THE ROGUE SHIP ACTUALLY FINISHES ITS MISSION
             else:
                 # the ship died
                 planet_ownership_changes[rogue_missions_id[ship_id].id] += 1
                 del rogue_missions_id[ship_id]
+        logging.info(f'rogue_missions: {dict([(ship_id, planet.id) for ship_id, planet in rogue_missions_id.items()])}')
     elif len(potential_rogue_missions) > 0:
         min_dist_alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, potential_rogue_missions)
         rogue_ship = bot_utils.get_shortest_alloc(min_dist_alloc)
         orders[rogue_ship] = min_dist_alloc[rogue_ship]
         my_unassigned_ships.remove(rogue_ship)
         rogue_missions_id[rogue_ship.id] = min_dist_alloc[rogue_ship]
-    if len(rogue_missions_id) > 0:
-        logging.info(f'rogue_missions: {dict([(ship_id, planet.id) for ship_id, planet in rogue_missions_id.items()])}')
 
     # minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, good_opportunities)
     alloc = bot_utils.get_maximal_benefit_allocation(my_unassigned_ships, good_opportunities, relative_benefit_factors,
-                                                     job_base_benefit)
+                                                     job_base_benefit)  # NOT MINIMAL DIST ALLOC
     logging_alloc = {f'S{ship.id}': f'P{target.id}' if isinstance(target, hlt.entity.Planet) else f'S{target.id}' for
                      ship, target in alloc.items()}
     logging.info(f'Minimal dist alloc: {logging_alloc}')
@@ -221,18 +216,6 @@ while True:
         if len(followers) > 0:
             leader.radius = leader.calculate_distance_between(bot_utils.get_furthest(leader, followers)) + 0.5
 
-    # mission overwrite for safety
-    for ship in my_free_navigation_ships:
-        number_of_nearby_enemies = len(bot_utils.get_proximity_alerts([ship], [safety_check_radius], mobile_enemies))
-        number_of_nearby_friendlies = len(bot_utils.get_proximity_alerts([ship], [safety_check_radius], my_fighting_ships))
-        if number_of_nearby_enemies * attack_superiority_ratio > number_of_nearby_friendlies:
-            # target the nearest docked ship
-            closest_docked_ship = bot_utils.get_closest(ship, my_docked_ships)
-            if closest_docked_ship:
-                orders[ship] = closest_docked_ship
-            else:
-                orders[ship] = bot_utils.get_closest(ship, game_map.get_me().all_ships())
-
     # 4 LOGGING
     logging_orders = {}
     for ship, order in orders.items():
@@ -273,7 +256,7 @@ while True:
             avoid_entities.remove(ship)
             if orders[ship] in packs.keys():
                 approach_dist = leader_approach_dist
-            elif isinstance(orders[ship], hlt.entity.Planet):
+            elif orders[ship] in all_planets:
                 approach_dist = planet_approach_dist
             elif orders[ship] in mobile_enemies:
                 approach_dist = dogfighting_approach_dist
