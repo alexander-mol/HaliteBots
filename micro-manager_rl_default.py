@@ -3,28 +3,28 @@ import bot_utils
 import logging
 import copy
 
-game = hlt.Game("Micro-Manager-SS-Evolved")
+game = hlt.Game("Micro-Manager-RL-Default")
 
 # PARAMETERS
 # strategic parameters
-defensive_action_radius = 56.189
+defensive_action_radius = 56.18943617012262
 max_response = 14
-safe_docking_distance = 15.234
-job_base_benefit = 70.755
-attacking_relative_benefit = 1.193
-defending_relative_benefit = 1.302
+safe_docking_distance = 15.233969556529464
+job_base_benefit = 70.75535494051579
+attacking_relative_benefit = 1.1931314630704206
+defending_relative_benefit = 1.301744400198746
 available_ships_for_rogue_mission_trigger = 10
-zone_dominance_factor_for_docking = 2.847
-safety_check_radius = 11.567
-attack_superiority_ratio = 1.018
+zone_dominance_factor_for_docking = 2.8465231968757814
+safety_check_radius = 11.566811782434963
+attack_superiority_ratio = 1.0175378412423681
 
 # micro movement parameters
-general_approach_dist = 3.367
-dogfighting_approach_dist = 2.956
-planet_approach_dist = 3.451
-leader_approach_dist = 0.348
-tether_dist = 1.324
-padding = 0.079
+general_approach_dist = 3.366673468619718
+dogfighting_approach_dist = 2.956406695768298
+planet_approach_dist = 3.450904671246763
+leader_approach_dist = 0.3482670596038704
+tether_dist = 1.3241447399907986
+padding = 0.07948392850662765
 
 # navigation parameters
 angular_step = 5
