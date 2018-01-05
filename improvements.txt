@@ -20,6 +20,8 @@ Important:
 - Build fail safe for overly aggressive opponents - if opp tries to rush - then need make a super compact defensive formation that moves away from the attackers
 - More analysis with super aggressive attacker - maybe seek safety needs to be upgraded to center attacker's radius on
     him instead of on the defending ship...
+- OPTIMIZE THE NEW MICRO FIGHTING PARAMETERS
+- MAKE SMART NAVIGATION BETTER...
 
 To categorize:
 

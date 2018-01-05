@@ -3,7 +3,7 @@ import bot_utils
 import logging
 import copy
 
-game = hlt.Game("Micro-Manager-SS-cheeky")
+game = hlt.Game("Micro-Manager-SS-cheeky-upgraded")
 
 # PARAMETERS
 # strategic parameters
@@ -16,25 +16,26 @@ defending_relative_benefit = 1.5
 available_ships_for_rogue_mission_trigger = 12  # number of ships where loosing one isn't a disaster
 zone_dominance_factor_for_docking = 10
 safety_check_radius = 10.0
-attack_superiority_ratio = 2.1
+support_radius = 10.0
+attack_superiority_ratio = 1.5
 
 # micro movement parameters
 general_approach_dist = 3.7
 dogfighting_approach_dist = 3.7
 planet_approach_dist = 3.45
-leader_approach_dist = 0.77
+own_ship_approach_dist = 0.77
 tether_dist = 1.81
 padding = 0.14  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
+max_horizon = 8.0
 
 # navigation parameters
 angular_step = 5
-horizon_reduction_factor = 0.99
 max_corrections = int(90 / angular_step) + 1
 motion_ghost_points = 6
 use_unassigned_ships = True
 
 # cheeky params
-health_reduction_for_survival_mode = 0.67
+health_reduction_for_survival_mode = 0.6
 
 type_table = {}  # e.g. id -> string
 enemy_tracking = {}
@@ -42,6 +43,7 @@ planet_ownership_changes = {}
 planet_owners = {}
 rogue_missions_id = {}
 total_health_high_water_mark = 0
+collection_points = []
 
 # important lists to keep up-to-date:
 # - my_unassigned_ships
@@ -64,6 +66,13 @@ while True:
         for planet in all_planets:
             planet_ownership_changes[planet.id] = 0
             planet_owners[planet.id] = planet.owner
+
+        w = game_map.width
+        h = game_map.height
+        collection_points = [hlt.entity.Position(1, 1), hlt.entity.Position(w - 1, 1), hlt.entity.Position(1, h - 1),
+                             hlt.entity.Position(w - 1, h - 1), hlt.entity.Position(w/3, h - 1),
+                             hlt.entity.Position(2*w/3, h - 1), hlt.entity.Position(w/3, 1),
+                             hlt.entity.Position(2*w/3, 1)]
 
     for planet in all_planets:
         if planet.owner != planet_owners[planet.id]:
@@ -232,26 +241,24 @@ while True:
 
     # survival mode overwrites
     if total_health <= int(total_health_high_water_mark * (1 - health_reduction_for_survival_mode)):
-        w = game_map.width
-        h = game_map.height
-        collection_points = [hlt.entity.Position(1, 1), hlt.entity.Position(w - 1, 1),
-                             hlt.entity.Position(1, h - 1),
-                             hlt.entity.Position(w - 1, h - 1)]
         for ship in my_fighting_ships:
             orders[ship] = bot_utils.get_closest(ship, collection_points)
 
     # mission overwrite for safety
     for ship in my_free_navigation_ships:
-        number_of_nearby_enemies = len(bot_utils.get_proximity_alerts([ship], [safety_check_radius], mobile_enemies))
-        number_of_nearby_friendlies = len(
-            bot_utils.get_proximity_alerts([ship], [safety_check_radius], my_fighting_ships))
-        if number_of_nearby_enemies * attack_superiority_ratio > number_of_nearby_friendlies:
-            # target the nearest docked ship
-            closest_docked_ship = bot_utils.get_closest(ship, my_docked_ships)
-            if closest_docked_ship:
-                orders[ship] = closest_docked_ship
-            else:
-                orders[ship] = bot_utils.get_closest(ship, game_map.get_me().all_ships())
+        nearby_enemies = bot_utils.get_proximity_alerts([ship], [safety_check_radius], mobile_enemies)
+        if len(nearby_enemies) > 0:
+            nearest_enemy = bot_utils.get_closest(ship, nearby_enemies)
+            enemy_support = len(bot_utils.get_proximity_alerts([nearest_enemy], [support_radius], mobile_enemies))
+            my_support = len(
+                bot_utils.get_proximity_alerts([ship], [support_radius], my_fighting_ships))
+            if enemy_support * attack_superiority_ratio > my_support:
+                # target the nearest docked ship
+                closest_docked_ship = bot_utils.get_closest(ship, my_docked_ships)
+                if closest_docked_ship:
+                    orders[ship] = closest_docked_ship
+                else:
+                    orders[ship] = bot_utils.get_closest(ship, game_map.get_me().all_ships())
 
     # 4 LOGGING
     logging_orders = {}
@@ -291,8 +298,8 @@ while True:
                 del rogue_missions_id[ship.id]
         else:
             avoid_entities.remove(ship)
-            if orders[ship] in packs.keys():
-                approach_dist = leader_approach_dist
+            if orders[ship] in game_map.get_me().all_ships():
+                approach_dist = own_ship_approach_dist
             elif isinstance(orders[ship], hlt.entity.Planet):
                 approach_dist = planet_approach_dist
             elif orders[ship] in mobile_enemies:
@@ -309,7 +316,7 @@ while True:
                 hlt.constants.MAX_SPEED,
                 angular_step=angular_step,
                 max_corrections=max_corrections,
-                horizon_reduction_factor=horizon_reduction_factor,
+                max_horizon=max_horizon,
                 padding=padding,
                 avoid_entities=avoid_entities)
             if command:

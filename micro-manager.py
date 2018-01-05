@@ -28,7 +28,7 @@ padding = 0.14   # standard padding added to obstacle radii (helps to prevent un
 
 # navigation parameters
 angular_step = 5
-horizon_reduction_factor = 0.99
+max_horizon = 1000
 max_corrections = int(90 / angular_step) + 1
 motion_ghost_points = 6
 use_unassigned_ships = True
@@ -289,7 +289,7 @@ while True:
                 hlt.constants.MAX_SPEED,
                 angular_step=angular_step,
                 max_corrections=max_corrections,
-                horizon_reduction_factor=horizon_reduction_factor,
+                max_horizon=max_horizon,
                 padding=padding,
                 avoid_entities=avoid_entities)
             if command:
