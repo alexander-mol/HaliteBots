@@ -15,14 +15,11 @@ MOBILE ENEMIES WAS BEING CALCULATED INCORRECTLY "<" instead of ">" (hence why do
 
 Important:
 - Do more analysis on 4 person maps
-- Make it so guys hide in the corner when all hope is lost (only relevant on 4 person maps)
 - Planets should get a relative benefit factor based on distance from center of map
     - maybe just different benefit factor if center of map 2 x 2 planets - keep things simple
 - Build fail safe for overly aggressive opponents - if opp tries to rush - then need make a super compact defensive formation that moves away from the attackers
-- Seek safety can be optimized:
-    - if enemies nearby (within 10) go to base - is really surprisingly powerful, but too conservative
-    - NEED TO HAVE A POWER RATIO (MAYBE BASED ON TOTAL HEALTH) AND OPTIMIZE THIS - the strategy above uses ratio ~inf,
-        while my decent safety strategy uses ratio ~1.01 (need to actually use ratio)
+- More analysis with super aggressive attacker - maybe seek safety needs to be upgraded to center attacker's radius on
+    him instead of on the defending ship...
 
 To categorize:
 
