@@ -24,12 +24,13 @@ evolving_bot = 'micro-manager_evolved.py'
 comparison_bot = 'micro-manager.py'
 
 # initialize pop
-base_params = {'defensive_action_radius': 49.355, 'max_response': 6, 'safe_docking_distance': 12.5,
-               'job_base_benefit': 81.3, 'attacking_relative_benefit': 1.378, 'defending_relative_benefit': 1.367,
-               'available_ships_for_rogue_mission_trigger': 13, 'zone_dominance_factor_for_docking': 3.86,
-               'safety_check_radius': 10.0, 'attack_superiority_ratio': 2.075, 'general_approach_dist': 4.16,
-               'dogfighting_approach_dist': 4.047, 'planet_approach_dist': 3.48, 'leader_approach_dist': 0.767,
-               'tether_dist': 1.95, 'padding': 0.14}
+base_params = {'defensive_action_radius': 34.6, 'max_response': 5, 'safe_docking_distance': 12.5,
+               'job_base_benefit': 81.3, 'attacking_relative_benefit': 1.5, 'defending_relative_benefit': 1.5,
+               'central_planet_relative_benefit': 0.5, 'available_ships_for_rogue_mission_trigger': 12,
+               'zone_dominance_factor_for_docking': 10, 'safety_check_radius': 10.0, 'support_radius': 10.0,
+               'attack_superiority_ratio': 1.5, 'rush_mode_proximity': 70.0, 'general_approach_dist': 3.7,
+               'dogfighting_approach_dist': 3.7, 'planet_approach_dist': 3.45, 'own_ship_approach_dist': 0.77,
+               'tether_dist': 1.81}
 
 rl_new_params = {'defensive_action_radius': 56.189, 'max_response': 14, 'safe_docking_distance': 15.234,
                  'job_base_benefit': 70.755, 'attacking_relative_benefit': 1.193, 'defending_relative_benefit': 1.302,
@@ -220,5 +221,5 @@ def run_evolution(use_cache=False):
 
 # set_params(rl_new_params, 'micro-manager_evolved.py')
 # run_reinforcement_learning()
-# run_evolution()
-print(get_fitness(200, feedback=True))
+run_evolution()
+# print(get_fitness(200, feedback=True))

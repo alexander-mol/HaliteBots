@@ -3,21 +3,23 @@ import bot_utils
 import logging
 import copy
 
-game = hlt.Game("Micro-Manager-SS-cheeky-upgraded")
+game = hlt.Game("Micro-Manager-cheeky-upgraded")
 
 # PARAMETERS
 # strategic parameters
-defensive_action_radius = 34.6  # enemy distance from planet that triggers defensive action
-max_response = 5  # maximum number of interceptors per enemy
-safe_docking_distance = 12.5  # minimum 'safe' distance from a planet to the nearest enemy
+defensive_action_radius = 34.6
+max_response = 5
+safe_docking_distance = 12.5
 job_base_benefit = 81.3
 attacking_relative_benefit = 1.5
 defending_relative_benefit = 1.5
-available_ships_for_rogue_mission_trigger = 12  # number of ships where loosing one isn't a disaster
+central_planet_relative_benefit = 0.5
+available_ships_for_rogue_mission_trigger = 12
 zone_dominance_factor_for_docking = 10
 safety_check_radius = 10.0
 support_radius = 10.0
 attack_superiority_ratio = 1.5
+rush_mode_proximity = 70.0
 
 # micro movement parameters
 general_approach_dist = 3.7
@@ -25,7 +27,7 @@ dogfighting_approach_dist = 3.7
 planet_approach_dist = 3.45
 own_ship_approach_dist = 0.77
 tether_dist = 1.81
-padding = 0.14  # standard padding added to obstacle radii (helps to prevent unwanted crashes)
+padding = 0.14
 max_horizon = 8.0
 
 # navigation parameters
@@ -70,9 +72,10 @@ while True:
         w = game_map.width
         h = game_map.height
         collection_points = [hlt.entity.Position(1, 1), hlt.entity.Position(w - 1, 1), hlt.entity.Position(1, h - 1),
-                             hlt.entity.Position(w - 1, h - 1), hlt.entity.Position(w/3, h - 1),
-                             hlt.entity.Position(2*w/3, h - 1), hlt.entity.Position(w/3, 1),
-                             hlt.entity.Position(2*w/3, 1)]
+                             hlt.entity.Position(w - 1, h - 1)]
+                             # hlt.entity.Position(w / 3, h - 1),
+                             # hlt.entity.Position(2 * w / 3, h - 1), hlt.entity.Position(w / 3, 1),
+                             # hlt.entity.Position(2 * w / 3, 1)]
 
     for planet in all_planets:
         if planet.owner != planet_owners[planet.id]:
@@ -153,13 +156,18 @@ while True:
                 potential_rogue_missions.append(game_map.get_planet(planet_id))
 
     good_dock_spots = []
+    dock_spot_relative_benefits = []
     for planet in good_to_dock_planets:
         for _ in range(planet.num_docking_spots - len(planet.all_docked_ships())):
             good_dock_spots.append(planet)
+            if planet.id in [0, 1, 2, 3]:
+                dock_spot_relative_benefits.append(central_planet_relative_benefit)
+            else:
+                dock_spot_relative_benefits.append(1)
 
     fighting_opportunities = (docked_enemy_ships + proximal_enemy_ships) * max_response
     good_opportunities = good_dock_spots + fighting_opportunities
-    relative_benefit_factors = [1] * len(good_dock_spots) \
+    relative_benefit_factors = dock_spot_relative_benefits \
                                + [attacking_relative_benefit] * len(docked_enemy_ships) * max_response \
                                + [defending_relative_benefit] * len(proximal_enemy_ships) * max_response
     opportunities_logging = [f'P{op.id}' if isinstance(op, hlt.entity.Planet) else f'S{op.id}' for op in
@@ -190,13 +198,22 @@ while True:
     if len(rogue_missions_id) > 0:
         logging.info(f'rogue_missions: {dict([(ship_id, planet.id) for ship_id, planet in rogue_missions_id.items()])}')
 
-    # minimal_dist_alloc = bot_utils.get_minimal_distance_allocation(my_unassigned_ships, good_opportunities)
     alloc = bot_utils.get_maximal_benefit_allocation(my_unassigned_ships, good_opportunities, relative_benefit_factors,
                                                      job_base_benefit)
     logging_alloc = {f'S{ship.id}': f'P{target.id}' if isinstance(target, hlt.entity.Planet) else f'S{target.id}' for
                      ship, target in alloc.items()}
     logging.info(f'Minimal dist alloc: {logging_alloc}')
     logging.info(f'Time to calculate minimal distance job allocation: {timer.get_time()} ms')
+
+    # rushing
+    if len(my_docked_ships) == 0 and len(my_fighting_ships) <= 3:
+        if len(bot_utils.get_proximity_alerts(my_fighting_ships, [rush_mode_proximity] * len(my_fighting_ships),
+                                              enemy_ships)) > 0:
+            closest_enemy = bot_utils.get_closest(my_fighting_ships[0], enemy_ships)
+            fighting_opportunities.append(closest_enemy)
+            alloc = {}
+            for ship in my_fighting_ships:
+                alloc[ship] = closest_enemy
 
     # sort ships by type of objective
     potential_packs = {fighting_opportunity: [] for fighting_opportunity in fighting_opportunities}
