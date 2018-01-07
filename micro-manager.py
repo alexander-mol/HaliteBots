@@ -3,7 +3,7 @@ import bot_utils
 import logging
 import copy
 
-game = hlt.Game("Micro-Manager-Evolved")
+game = hlt.Game("Micro-Manager-SS")
 
 # PARAMETERS
 # strategic parameters
