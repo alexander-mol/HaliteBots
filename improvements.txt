@@ -1,5 +1,11 @@
 IMPROVEMENTS
 
+IMPORTANT
+- when doing obstacle check, only check obstacles that are nearby, that way we can do 1 deg steps
+- additionally, it might be better to only 'go around' fixed objects (planets, docked ships etc.), and instead line-up
+    behind moving obstacles e.g. just have a lower speed for that frame (that way clumps don't get stuck)
+
+
 Need more thought:
 - tracking enemies over more time periods to estimate position better
 - Really try to intercept - predict path and make an isosceles triangle - also helps with pack formation

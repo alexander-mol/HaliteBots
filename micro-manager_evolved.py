@@ -7,32 +7,32 @@ game = hlt.Game("Micro-Manager-Evolved")
 
 # PARAMETERS
 # strategic parameters
-defensive_action_radius = 32.86862204255233
-max_response = 6
+defensive_action_radius = 34.6
+max_response = 8
 safe_docking_distance = 12.5
-job_base_benefit = 97.20317360474048
-attacking_relative_benefit = 1.436182763421885
-defending_relative_benefit = 1.645521730785775
-central_planet_relative_benefit = 0.4992611248829882
-available_ships_for_rogue_mission_trigger = 11
-zone_dominance_factor_for_docking = 11
-safety_check_radius = 7.895418420232885
-support_radius = 10.0
-attack_superiority_ratio = 1.5
-rush_mode_proximity = 71.2959324400673
+job_base_benefit = 71.6
+attacking_relative_benefit = 1.5
+defending_relative_benefit = 1.385
+central_planet_relative_benefit = 1.0
+available_ships_for_rogue_mission_trigger = 12
+zone_dominance_factor_for_docking = 4.0
+safety_check_radius = 12.0
+support_radius = 8.0
+attack_superiority_ratio = 1.19
+rush_mode_proximity = 82.0
 
 # micro movement parameters
-general_approach_dist = 3.120551442958003
+general_approach_dist = 3.7
 dogfighting_approach_dist = 3.7
-planet_approach_dist = 2.6902914252202694
-own_ship_approach_dist = 0.9162414020958505
-tether_dist = 1.81
+planet_approach_dist = 3.45
+own_ship_approach_dist = 0.77
+tether_dist = 1.375
 padding = 0.14
 max_horizon = 8.0
 
 # navigation parameters
 angular_step = 5
-max_corrections = int(90 / angular_step) + 1
+max_corrections = int(180 / angular_step) + 1
 motion_ghost_points = 6
 use_unassigned_ships = True
 
@@ -207,7 +207,7 @@ while True:
 
     # rushing
     if len(my_docked_ships) == 0 and len(my_fighting_ships) <= 3:
-        if len(bot_utils.get_proximity_alerts(my_fighting_ships, [rush_mode_proximity] * 3,
+        if len(bot_utils.get_proximity_alerts(my_fighting_ships, [rush_mode_proximity] * len(my_fighting_ships),
                                               enemy_ships)) > 0:
             closest_enemy = bot_utils.get_closest(my_fighting_ships[0], enemy_ships)
             fighting_opportunities.append(closest_enemy)

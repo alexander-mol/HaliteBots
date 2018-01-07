@@ -6,12 +6,13 @@ import random
 import time
 import _pickle
 import scipy.stats
+import sys
 
 # evolutionary algorithm parameters
-pop_size = 2
+pop_size = 4
 num_generations = 200
 fitness_num_games = 50
-mutation_rate = 0.35
+mutation_rate = 0.25
 mutation_magnitude = 0.25
 
 # map parameters
@@ -24,12 +25,19 @@ evolving_bot = 'micro-manager_evolved.py'
 comparison_bot = 'micro-manager.py'
 
 # initialize pop
-base_params = {'defensive_action_radius': 34.6, 'max_response': 5, 'safe_docking_distance': 12.5,
-               'job_base_benefit': 81.3, 'attacking_relative_benefit': 1.5, 'defending_relative_benefit': 1.5,
-               'central_planet_relative_benefit': 0.5, 'available_ships_for_rogue_mission_trigger': 12,
-               'zone_dominance_factor_for_docking': 10, 'safety_check_radius': 10.0, 'support_radius': 10.0,
-               'attack_superiority_ratio': 1.5, 'rush_mode_proximity': 70.0, 'general_approach_dist': 3.7,
-               'dogfighting_approach_dist': 3.7, 'planet_approach_dist': 3.45, 'own_ship_approach_dist': 0.77,
+# base_params = {'defensive_action_radius': 34.6, 'max_response': 5, 'safe_docking_distance': 12.5,
+#                'job_base_benefit': 81.3, 'attacking_relative_benefit': 1.5, 'defending_relative_benefit': 1.5,
+#                'central_planet_relative_benefit': 1.0, 'available_ships_for_rogue_mission_trigger': 12,
+#                'zone_dominance_factor_for_docking': 10, 'safety_check_radius': 10.0, 'support_radius': 10.0,
+#                'attack_superiority_ratio': 1.5, 'rush_mode_proximity': 70.0, 'general_approach_dist': 3.7,
+#                'dogfighting_approach_dist': 3.7, 'planet_approach_dist': 3.45, 'own_ship_approach_dist': 0.77,
+#                'tether_dist': 1.81}
+base_params = {'max_response': 8,
+               'job_base_benefit': 71.6, 'attacking_relative_benefit': 1.5, 'defending_relative_benefit': 1.385,
+               'central_planet_relative_benefit': 1.0,
+               'zone_dominance_factor_for_docking': 4.0, 'safety_check_radius': 12.0, 'support_radius': 8.0,
+               'attack_superiority_ratio': 1.13, 'rush_mode_proximity': 72.8,
+               'own_ship_approach_dist': 0.77,
                'tether_dist': 1.81}
 
 rl_new_params = {'defensive_action_radius': 56.189, 'max_response': 14, 'safe_docking_distance': 15.234,
@@ -64,8 +72,26 @@ def get_query(i, bot1=None, bot2=None, timeouts=True):
     return [path] + query, 0 if bot1 == evolving_bot else 1
 
 
+def get_query_windows(i, bot1=None, bot2=None, timeouts=True):
+    path = 'C:/Users/alexa/Documents/Halite2_Python3_Windows/halite.exe'
+    if not bot1 and not bot2:
+        bot1, bot2 = evolving_bot, comparison_bot
+    elif not (bot1 and bot2):
+        print('Only one bot given!')
+        exit()
+    if i % 2 == 1:
+        bot1, bot2 = bot2, bot1
+    query = ['-d', f'{map_width} {map_height}', f'python {bot1}', f'python {bot2}']
+    if not timeouts:
+        query.append('-t')
+    return [path] + query, 0 if bot1 == evolving_bot else 1
+
+
 def run_game(i, bot1, bot2):
-    query, target_pos = get_query(i, bot1, bot2)
+    if sys.platform == 'win32':
+        query, target_pos = get_query_windows(i, bot1, bot2)
+    else:
+        query, target_pos = get_query(i, bot1, bot2)
     result = subprocess.run(query, stdout=subprocess.PIPE).stdout.decode('utf-8')
     rank = re.findall(f'Player #{target_pos}, .*?, came in rank #(.*?) and', result)[0]
     ship_prod = re.findall(f'producing (\d*?) ships', result)
@@ -184,7 +210,7 @@ def run_evolution(use_cache=False):
     # for i, ind in enumerate(pop):
     #     set_params(ind[0])
     #     pop[i] = (ind[0], get_fitness(fitness_num_games)[0])
-    pop = [(base_params, 0.5), (base_params, None)]
+    pop = [(copy.copy(base_params), 0.0) for _ in range(pop_size)]
 
     mid_point = round(pop_size / 2)
 
@@ -221,5 +247,5 @@ def run_evolution(use_cache=False):
 
 # set_params(rl_new_params, 'micro-manager_evolved.py')
 # run_reinforcement_learning()
-run_evolution()
-# print(get_fitness(200, feedback=True))
+# run_evolution()
+print(get_fitness(200, feedback=True))
