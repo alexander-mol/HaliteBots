@@ -3,36 +3,36 @@ import bot_utils
 import logging
 import copy
 
-game = hlt.Game("Micro-Manager-cheeky-upgraded")
+game = hlt.Game("Micro-Manager-SS")
 
 # PARAMETERS
 # strategic parameters
 defensive_action_radius = 34.6
-max_response = 5
+max_response = 8
 safe_docking_distance = 12.5
-job_base_benefit = 81.3
+job_base_benefit = 71.6
 attacking_relative_benefit = 1.5
-defending_relative_benefit = 1.5
-central_planet_relative_benefit = 1
+defending_relative_benefit = 1.385
+central_planet_relative_benefit = 1.0
 available_ships_for_rogue_mission_trigger = 12
-zone_dominance_factor_for_docking = 10
-safety_check_radius = 10.0
-support_radius = 10.0
-attack_superiority_ratio = 1.5
-rush_mode_proximity = 70.0
+zone_dominance_factor_for_docking = 4.0
+safety_check_radius = 12.0
+support_radius = 8.0
+attack_superiority_ratio = 1.19
+rush_mode_proximity = 82.0
 
 # micro movement parameters
 general_approach_dist = 3.7
 dogfighting_approach_dist = 3.7
 planet_approach_dist = 3.45
 own_ship_approach_dist = 0.77
-tether_dist = 1.81
+tether_dist = 1.375
 padding = 0.14
 max_horizon = 8.0
 
 # navigation parameters
 angular_step = 5
-max_corrections = int(90 / angular_step) + 1
+max_corrections = int(180 / angular_step) + 1
 motion_ghost_points = 6
 use_unassigned_ships = True
 
@@ -206,7 +206,7 @@ while True:
     logging.info(f'Time to calculate minimal distance job allocation: {timer.get_time()} ms')
 
     # rushing
-    if len(my_docked_ships) == 0 and len(my_fighting_ships) <= 3:
+    if len(my_docked_ships) == 0 and len(my_fighting_ships) <= 3 and len(game_map.all_players()) == 2:
         if len(bot_utils.get_proximity_alerts(my_fighting_ships, [rush_mode_proximity] * len(my_fighting_ships),
                                               enemy_ships)) > 0:
             closest_enemy = bot_utils.get_closest(my_fighting_ships[0], enemy_ships)

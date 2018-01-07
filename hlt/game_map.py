@@ -147,6 +147,14 @@ class Map:
                 obstacles.append(foreign_entity)
         return obstacles
 
+    def get_relevant_obstacles(self, ship, max_horizon, avoid_entities):
+        relevant_obstacles = []
+        for entity in avoid_entities:
+            if ship.calculate_distance_between(entity) - entity.radius < max_horizon:
+                relevant_obstacles.append(entity)
+        return relevant_obstacles
+
+
 
 class Player:
     """

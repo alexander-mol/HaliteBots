@@ -327,6 +327,8 @@ class Ship(Entity):
         # Assumes a position, not planet (as it would go to the center of the planet otherwise)
         if max_corrections <= 0:
             return None
+        if max_horizon < 1000:
+            avoid_entities = game_map.get_relevant_obstacles(self, max_horizon, avoid_entities)
         straight_angle = self.calculate_angle_between(target)
         ignore = ()
         angle_r, distance_r = self.get_angle(target, game_map, max_corrections, angular_step, padding,

@@ -31,7 +31,7 @@ padding = 0.14
 max_horizon = 8.0
 
 # navigation parameters
-angular_step = 5
+angular_step = 1
 max_corrections = int(180 / angular_step) + 1
 motion_ghost_points = 6
 use_unassigned_ships = True
@@ -206,7 +206,7 @@ while True:
     logging.info(f'Time to calculate minimal distance job allocation: {timer.get_time()} ms')
 
     # rushing
-    if len(my_docked_ships) == 0 and len(my_fighting_ships) <= 3 and len(game_map.all_planets()) == 2:
+    if len(my_docked_ships) == 0 and len(my_fighting_ships) <= 3 and len(game_map.all_players()) == 2:
         if len(bot_utils.get_proximity_alerts(my_fighting_ships, [rush_mode_proximity] * len(my_fighting_ships),
                                               enemy_ships)) > 0:
             closest_enemy = bot_utils.get_closest(my_fighting_ships[0], enemy_ships)

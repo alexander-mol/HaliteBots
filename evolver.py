@@ -12,7 +12,7 @@ import sys
 pop_size = 4
 num_generations = 200
 fitness_num_games = 50
-mutation_rate = 0.25
+mutation_rate = 0.4
 mutation_magnitude = 0.25
 
 # map parameters
@@ -32,11 +32,8 @@ comparison_bot = 'micro-manager.py'
 #                'attack_superiority_ratio': 1.5, 'rush_mode_proximity': 70.0, 'general_approach_dist': 3.7,
 #                'dogfighting_approach_dist': 3.7, 'planet_approach_dist': 3.45, 'own_ship_approach_dist': 0.77,
 #                'tether_dist': 1.81}
-base_params = {'max_response': 8,
-               'job_base_benefit': 71.6, 'attacking_relative_benefit': 1.5, 'defending_relative_benefit': 1.385,
-               'central_planet_relative_benefit': 1.0,
+base_params = {'max_response': 8, 'dogfighting_approach_dist': 3.7, 'general_approach_dist': 3.7,
                'zone_dominance_factor_for_docking': 4.0, 'safety_check_radius': 12.0, 'support_radius': 8.0,
-               'attack_superiority_ratio': 1.13, 'rush_mode_proximity': 72.8,
                'own_ship_approach_dist': 0.77,
                'tether_dist': 1.81}
 
