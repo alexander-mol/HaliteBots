@@ -28,10 +28,10 @@ planet_approach_dist = 3.45
 own_ship_approach_dist = 0.77
 tether_dist = 1.375
 padding = 0.14
-max_horizon = 8.0
+max_horizon = 12.0
 
 # navigation parameters
-angular_step = 5
+angular_step = 1
 max_corrections = int(180 / angular_step) + 1
 motion_ghost_points = 6
 use_unassigned_ships = True
