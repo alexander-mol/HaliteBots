@@ -2,8 +2,9 @@ import hlt
 import bot_utils
 import logging
 import copy
+import math
 
-game = hlt.Game("Micro-Manager-SS")
+game = hlt.Game("Micro-Manager-SS-upgraded")
 
 # PARAMETERS
 # strategic parameters
@@ -20,6 +21,9 @@ safety_check_radius = 12.0
 support_radius = 8.0
 attack_superiority_ratio = 1.19
 rush_mode_proximity = 82.0
+num_defense_distractors_per_root_docked_ship = 0.1
+defense_distractor_safety_check_radius = 19.0
+defense_distractor_engagement_radius = 80.0
 
 # micro movement parameters
 general_approach_dist = 3.7
@@ -46,6 +50,7 @@ planet_owners = {}
 rogue_missions_id = {}
 total_health_high_water_mark = 0
 collection_points = []
+center = None
 
 # important lists to keep up-to-date:
 # - my_unassigned_ships
@@ -71,6 +76,7 @@ while True:
 
         w = game_map.width
         h = game_map.height
+        center = hlt.entity.Position(w/2, h/2)
         collection_points = [hlt.entity.Position(1, 1), hlt.entity.Position(w - 1, 1), hlt.entity.Position(1, h - 1),
                              hlt.entity.Position(w - 1, h - 1)]
                              # hlt.entity.Position(w / 3, h - 1),
@@ -178,6 +184,18 @@ while True:
     # All orders are placed here - the eventual position may change later on due to position prediction
     orders = {}
 
+    # handle defense distractors
+    distraction_planets = bot_utils.get_proximity_alerts(my_planets,
+         [defense_distractor_engagement_radius] * len(my_planets), enemy_planets)
+    defense_distractors = []
+    target_num = 2 # int(len(my_docked_ships) * math.sqrt(num_defense_distractors_per_root_docked_ship))
+    for _ in range(target_num):
+        ship, planet = bot_utils.get_closest_pair(my_unassigned_ships, distraction_planets)
+        if planet:
+            orders[ship] = next(iter(planet._docked_ships.values()))
+            my_unassigned_ships.remove(ship)
+            defense_distractors.append(ship)
+
     # handle rogue missions
     if len(rogue_missions_id) > 0:
         for ship_id, target in list(rogue_missions_id.items()):
@@ -263,6 +281,8 @@ while True:
 
     # mission overwrite for safety
     for ship in my_free_navigation_ships:
+        if ship in defense_distractors:
+            continue
         nearby_enemies = bot_utils.get_proximity_alerts([ship], [safety_check_radius], mobile_enemies)
         if len(nearby_enemies) > 0:
             nearest_enemy = bot_utils.get_closest(ship, nearby_enemies)
@@ -276,6 +296,11 @@ while True:
                     orders[ship] = closest_docked_ship
                 else:
                     orders[ship] = bot_utils.get_closest(ship, game_map.get_me().all_ships())
+    for ship in defense_distractors:
+        nearby_enemies = bot_utils.get_proximity_alerts([ship], [safety_check_radius], mobile_enemies)
+        if len(nearby_enemies) > 0:
+            nearest_enemy = bot_utils.get_closest(ship, nearby_enemies)
+            orders[ship] = (bot_utils.extend_ray(nearest_enemy, ship, 10) + bot_utils.extend_ray(ship, center, 3) ) / 2
 
     # 4 LOGGING
     logging_orders = {}

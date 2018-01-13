@@ -9,11 +9,11 @@ import scipy.stats
 import sys
 
 # evolutionary algorithm parameters
-pop_size = 4
-num_generations = 200
-fitness_num_games = 50
-mutation_rate = 0.4
-mutation_magnitude = 0.25
+pop_size = 10
+num_generations = 100
+fitness_num_games = 70
+mutation_rate = 0.3
+mutation_magnitude = 0.2
 
 # map parameters
 map_width = 288  # 288
@@ -22,20 +22,16 @@ map_height = 192  # 192
 # competing bots
 rl_default_bot = 'micro-manager_rl_default.py'
 evolving_bot = 'micro-manager_evolved.py'
-comparison_bot = 'micro-manager.py'
+comparison_bot = 'MyBot.py'
 
 # initialize pop
-# base_params = {'defensive_action_radius': 34.6, 'max_response': 5, 'safe_docking_distance': 12.5,
-#                'job_base_benefit': 81.3, 'attacking_relative_benefit': 1.5, 'defending_relative_benefit': 1.5,
-#                'central_planet_relative_benefit': 1.0, 'available_ships_for_rogue_mission_trigger': 12,
-#                'zone_dominance_factor_for_docking': 10, 'safety_check_radius': 10.0, 'support_radius': 10.0,
-#                'attack_superiority_ratio': 1.5, 'rush_mode_proximity': 70.0, 'general_approach_dist': 3.7,
-#                'dogfighting_approach_dist': 3.7, 'planet_approach_dist': 3.45, 'own_ship_approach_dist': 0.77,
-#                'tether_dist': 1.81}
-base_params = {'max_response': 8, 'dogfighting_approach_dist': 3.7, 'general_approach_dist': 3.7,
+base_params = {'defensive_action_radius': 34.6, 'max_response': 8, 'safe_docking_distance': 12.5,
+               'job_base_benefit': 71.6, 'attacking_relative_benefit': 1.5, 'defending_relative_benefit': 1.385,
+               'central_planet_relative_benefit': 1.0, 'available_ships_for_rogue_mission_trigger': 12,
                'zone_dominance_factor_for_docking': 4.0, 'safety_check_radius': 12.0, 'support_radius': 8.0,
-               'own_ship_approach_dist': 0.77,
-               'tether_dist': 1.81}
+               'attack_superiority_ratio': 1.19, 'rush_mode_proximity': 82.0, 'general_approach_dist': 3.7,
+               'dogfighting_approach_dist': 3.7, 'planet_approach_dist': 3.45, 'own_ship_approach_dist': 0.77,
+               'tether_dist': 1.375, 'padding': 0.14, 'max_horizon': 12.0}
 
 rl_new_params = {'defensive_action_radius': 56.189, 'max_response': 14, 'safe_docking_distance': 15.234,
                  'job_base_benefit': 70.755, 'attacking_relative_benefit': 1.193, 'defending_relative_benefit': 1.302,
@@ -43,6 +39,30 @@ rl_new_params = {'defensive_action_radius': 56.189, 'max_response': 14, 'safe_do
                  'safety_check_radius': 11.567, 'attack_superiority_ratio': 1.018, 'general_approach_dist': 3.367,
                  'dogfighting_approach_dist': 2.956, 'planet_approach_dist': 3.451, 'leader_approach_dist': 0.348,
                  'tether_dist': 1.324, 'padding': 0.079}
+
+fill_params = {'attack_superiority_ratio': 0.9925710709622071,
+               'attacking_relative_benefit': 1.052789669520592,
+               'available_ships_for_rogue_mission_trigger': 12,
+               'central_planet_relative_benefit': 0.8926327212078141,
+               'defending_relative_benefit': 1.248641506352455,
+               'defensive_action_radius': 30.189406804098482,
+               'dogfighting_approach_dist': 4.107098036408979,
+               'general_approach_dist': 3.034795041716468,
+               'job_base_benefit': 71.73509335719545,
+               'max_horizon': 8.238405766472612,
+               'max_response': 7,
+               'own_ship_approach_dist': 0.9069865875327943,
+               'padding': 0.116521697542258,
+               'planet_approach_dist': 3.020112860657823,
+               'rush_mode_proximity': 94.09576212418199,
+               'safe_docking_distance': 13.262919132584583,
+               'safety_check_radius': 13.89285327188173,
+               'support_radius': 7.697046463216647,
+               'tether_dist': 1.1328976603859422,
+               'zone_dominance_factor_for_docking': 5.898325843083396}
+
+with open('map_seeds.p', 'rb') as f:
+    map_seeds = _pickle.load(f)
 
 t0 = time.time()
 logging.basicConfig(level=logging.INFO, filename='./evolver_log', filemode='w')
@@ -69,7 +89,7 @@ def get_query(i, bot1=None, bot2=None, timeouts=True):
     return [path] + query, 0 if bot1 == evolving_bot else 1
 
 
-def get_query_windows(i, bot1=None, bot2=None, timeouts=True):
+def get_query_windows(i, bot1=None, bot2=None, timeouts=True, use_seed=True):
     path = 'C:/Users/alexa/Documents/Halite2_Python3_Windows/halite.exe'
     if not bot1 and not bot2:
         bot1, bot2 = evolving_bot, comparison_bot
@@ -79,31 +99,35 @@ def get_query_windows(i, bot1=None, bot2=None, timeouts=True):
     if i % 2 == 1:
         bot1, bot2 = bot2, bot1
     query = ['-d', f'{map_width} {map_height}', f'python {bot1}', f'python {bot2}']
+    if use_seed:
+        query.extend(['-s', f'{map_seeds[i]}'])
     if not timeouts:
         query.append('-t')
     return [path] + query, 0 if bot1 == evolving_bot else 1
 
 
-def run_game(i, bot1, bot2):
+def run_game(i, bot1, bot2, use_seed):
     if sys.platform == 'win32':
-        query, target_pos = get_query_windows(i, bot1, bot2)
+        query, target_pos = get_query_windows(i, bot1, bot2, use_seed=use_seed)
     else:
         query, target_pos = get_query(i, bot1, bot2)
     result = subprocess.run(query, stdout=subprocess.PIPE).stdout.decode('utf-8')
     rank = re.findall(f'Player #{target_pos}, .*?, came in rank #(.*?) and', result)[0]
     ship_prod = re.findall(f'producing (\d*?) ships', result)
     logger.info(re.sub('Turn (.*?)\n', '', result))
+    map_seed = re.findall('Map seed was (.*?)\n', result)[0]
+    map_seeds.append(map_seed)
     return rank == '1', int(ship_prod[i % 2]), int(ship_prod[(i + 1) % 2])
 
 
 def get_fitness(num_games, id=None, feedback=False, early_stop_bad=False, early_stop_good=False,
-                early_stop_trigger=0.05, bot1=None, bot2=None):
+                early_stop_trigger=0.05, bot1=None, bot2=None, use_seed=True):
     win_count = 0
     ships_target, ships_opponent = 0, 0
     for i in range(num_games):
         if id:
             i = id + str(i)
-        outcome, ships_t, ships_o = run_game(i, bot1, bot2)
+        outcome, ships_t, ships_o = run_game(i, bot1, bot2, use_seed=use_seed)
         win_count += outcome
         ships_target += ships_t
         ships_opponent += ships_o
@@ -242,7 +266,8 @@ def run_evolution(use_cache=False):
         f'Finished in {round(t - t0)} s, or {round((t - t0)/(pop_size * num_generations * fitness_num_games), 1)} per game.')
 
 
-# set_params(rl_new_params, 'micro-manager_evolved.py')
+# set_params(fill_params, 'micro-manager_evolved.py')
 # run_reinforcement_learning()
 # run_evolution()
-print(get_fitness(200, feedback=True))
+print(get_fitness(200, feedback=True, use_seed=False))
+# print(map_seeds)

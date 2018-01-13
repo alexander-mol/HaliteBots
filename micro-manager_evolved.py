@@ -7,28 +7,28 @@ game = hlt.Game("Micro-Manager-Evolved")
 
 # PARAMETERS
 # strategic parameters
-defensive_action_radius = 34.6
-max_response = 8
-safe_docking_distance = 12.5
-job_base_benefit = 71.6
-attacking_relative_benefit = 1.5
-defending_relative_benefit = 1.385
-central_planet_relative_benefit = 1.0
+defensive_action_radius = 30.189406804098482
+max_response = 7
+safe_docking_distance = 13.262919132584583
+job_base_benefit = 71.73509335719545
+attacking_relative_benefit = 1.052789669520592
+defending_relative_benefit = 1.248641506352455
+central_planet_relative_benefit = 0.8926327212078141
 available_ships_for_rogue_mission_trigger = 12
-zone_dominance_factor_for_docking = 4.0
-safety_check_radius = 12.0
-support_radius = 8.0
-attack_superiority_ratio = 1.19
-rush_mode_proximity = 82.0
+zone_dominance_factor_for_docking = 5.898325843083396
+safety_check_radius = 13.89285327188173
+support_radius = 7.697046463216647
+attack_superiority_ratio = 0.9925710709622071
+rush_mode_proximity = 94.09576212418199
 
 # micro movement parameters
-general_approach_dist = 3.7
-dogfighting_approach_dist = 3.7
-planet_approach_dist = 3.45
-own_ship_approach_dist = 0.77
-tether_dist = 1.375
-padding = 0.14
-max_horizon = 8.0
+general_approach_dist = 3.034795041716468
+dogfighting_approach_dist = 4.107098036408979
+planet_approach_dist = 3.020112860657823
+own_ship_approach_dist = 0.9069865875327943
+tether_dist = 1.1328976603859422
+padding = 0.116521697542258
+max_horizon = 8.238405766472612
 
 # navigation parameters
 angular_step = 1

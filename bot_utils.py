@@ -35,6 +35,19 @@ def get_closest(obj, obj_list):
             min_obj = obj2
     return min_obj
 
+def get_closest_pair(obj_list1, obj_list2):
+    min_seen = 1e10
+    min_obj1 = None
+    min_obj2 = None
+    for obj1 in obj_list1:
+        for obj2 in obj_list2:
+            dist = obj1.calculate_distance_between(obj2)
+            if dist < min_seen:
+                min_seen = dist
+                min_obj1 = obj1
+                min_obj2 = obj2
+    return min_obj1, min_obj2
+
 def get_furthest(obj, obj_list):
     max_seen = -1e10
     max_obj = None
@@ -125,7 +138,6 @@ def get_minimal_distance_allocation(from_list, to_list):
         distances[:, j] = np.inf
     return optimal_alloc
 
-
 def get_maximal_benefit_allocation(from_list, to_list, importance_factors, base_importance):
     """Tries to find the allocation with the maximum total benefit by greedily matching the global maxima"""
     distances = get_distance_matrix(from_list, to_list)
@@ -140,7 +152,6 @@ def get_maximal_benefit_allocation(from_list, to_list, importance_factors, base_
         benefits[i, :] = -np.inf
         benefits[:, j] = -np.inf
     return optimal_alloc
-
 
 def get_distance_matrix(from_objects, to_objects):
     from_xs, from_ys = get_coordinate_arrays(from_objects)
@@ -195,6 +206,10 @@ def get_central_entity(entities):
     c /= len(entities)
     return get_closest(c, entities)
 
+def extend_ray(pos1, pos2, length):
+    dist = pos1.calculate_distance_between(pos2)
+    factor = (dist + length) / dist
+    return hlt.entity.Position((pos2.x - pos1.x) * factor + pos1.x, (pos2.y - pos1.y) * factor + pos1.y)
 
 class Timer:
     def __init__(self):
