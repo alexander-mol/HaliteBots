@@ -323,7 +323,7 @@ class Ship(Entity):
         return self.thrust(speed, angle)
 
     def smart_navigate(self, target, game_map, speed, max_corrections=90, angular_step=1, max_horizon=1000,
-                       padding=0.1, avoid_entities=None):
+                       padding=0.1, avoid_entities=None, horizon_reduction_rate=1):
         # Assumes a position, not planet (as it would go to the center of the planet otherwise)
         if max_corrections <= 0:
             return None
@@ -332,9 +332,9 @@ class Ship(Entity):
         straight_angle = self.calculate_angle_between(target)
         ignore = ()
         angle_r, distance_r = self.get_angle(target, game_map, max_corrections, angular_step, padding,
-                                             ignore, avoid_entities, max_horizon)
+                                             ignore, avoid_entities, max_horizon, horizon_reduction_rate)
         angle_l, distance_l = self.get_angle(target, game_map, max_corrections, -angular_step, padding,
-                                             ignore, avoid_entities, max_horizon)
+                                             ignore, avoid_entities, max_horizon, horizon_reduction_rate)
         speed_r = min(distance_r, speed)
         speed_l = min(distance_l, speed)
 
@@ -354,17 +354,19 @@ class Ship(Entity):
         return self.thrust(speed, angle)
 
     def get_angle(self, target, game_map, max_corrections, angular_step, padding, ignore,
-                  avoid_entities, max_horizon):
+                  avoid_entities, max_horizon, horizon_reduction_rate):
         if max_corrections <= 0:
             return None, 0
+        horizon_reduction_factor = math.pow(horizon_reduction_rate, angular_step / 90)
         distance = min(self.calculate_distance_between(target), max_horizon)
         angle = self.calculate_angle_between(target)
-        if game_map.obstacles_between(self, target, ignore, padding, avoid_entities):
-            new_target_dx = math.cos(math.radians(angle + angular_step)) * distance
-            new_target_dy = math.sin(math.radians(angle + angular_step)) * distance
+        obstacles = game_map.obstacles_between(self, target, ignore, padding, avoid_entities)
+        if obstacles:
+            new_target_dx = math.cos(math.radians(angle + angular_step)) * distance * horizon_reduction_factor
+            new_target_dy = math.sin(math.radians(angle + angular_step)) * distance * horizon_reduction_factor
             new_target = Position(self.x + new_target_dx, self.y + new_target_dy)
             return self.get_angle(new_target, game_map, max_corrections - 1, angular_step, padding, ignore,
-                                  avoid_entities, max_horizon)
+                                  avoid_entities, max_horizon, horizon_reduction_rate)
         return angle, distance
 
     def can_dock(self, planet):

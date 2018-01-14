@@ -21,7 +21,7 @@ map_height = 192  # 192
 
 # competing bots
 rl_default_bot = 'micro-manager_rl_default.py'
-evolving_bot = 'micro-manager_evolved.py'
+evolving_bot = 'better_clumps_bot.py'
 comparison_bot = 'MyBot.py'
 
 # initialize pop
@@ -115,8 +115,8 @@ def run_game(i, bot1, bot2, use_seed):
     rank = re.findall(f'Player #{target_pos}, .*?, came in rank #(.*?) and', result)[0]
     ship_prod = re.findall(f'producing (\d*?) ships', result)
     logger.info(re.sub('Turn (.*?)\n', '', result))
-    map_seed = re.findall('Map seed was (.*?)\n', result)[0]
-    map_seeds.append(map_seed)
+    # map_seed = re.findall('Map seed was (.*?)\n', result)[0]
+    # map_seeds.append(map_seed)
     return rank == '1', int(ship_prod[i % 2]), int(ship_prod[(i + 1) % 2])
 
 
@@ -266,7 +266,7 @@ def run_evolution(use_cache=False):
         f'Finished in {round(t - t0)} s, or {round((t - t0)/(pop_size * num_generations * fitness_num_games), 1)} per game.')
 
 
-# set_params(fill_params, 'micro-manager_evolved.py')
+# set_params(fill_params, 'better_clumps_bot.py')
 # run_reinforcement_learning()
 # run_evolution()
 print(get_fitness(200, feedback=True, use_seed=False))
