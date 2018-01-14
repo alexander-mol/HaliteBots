@@ -16,9 +16,9 @@ defending_relative_benefit = 1.5
 central_planet_relative_benefit = 1.2391985603773472
 available_ships_for_rogue_mission_trigger = 12
 zone_dominance_factor_for_docking = 5.898325843083396
-safety_check_radius = 17
-support_radius = 7.697046463216647
-attack_superiority_ratio = 0.9925710709622071
+safety_check_radius = 17.0
+support_radius = 7.7
+attack_superiority_ratio = 1.01
 rush_mode_proximity = 94.09576212418199
 
 # micro movement parameters
@@ -26,16 +26,17 @@ fighting_opportunity_merge_distance = 20.0
 general_approach_dist = 3.034795041716468
 dogfighting_approach_dist = 4.107098036408979
 planet_approach_dist = 3.020112860657823
-own_ship_approach_dist = 0.08
+own_ship_approach_dist = 0.1
 tether_dist = 1.5
-padding = 0.08
-max_horizon = 8.238405766472612
-horizon_reduction_rate = 0.3
+padding = 0.1
+max_horizon = 12
+min_horizon = 2.0
+horizon_reduction_rate = 0.02
 
 # navigation parameters
 angular_step = 1
 max_corrections = int(180 / angular_step) + 1
-motion_ghost_points = 8
+motion_ghost_points = 6
 use_unassigned_ships = True
 
 # cheeky params
@@ -75,9 +76,9 @@ while True:
         h = game_map.height
         collection_points = [hlt.entity.Position(1, 1), hlt.entity.Position(w - 1, 1), hlt.entity.Position(1, h - 1),
                              hlt.entity.Position(w - 1, h - 1)]
-                             # hlt.entity.Position(w / 3, h - 1),
-                             # hlt.entity.Position(2 * w / 3, h - 1), hlt.entity.Position(w / 3, 1),
-                             # hlt.entity.Position(2 * w / 3, 1)]
+        # hlt.entity.Position(w / 3, h - 1),
+        # hlt.entity.Position(2 * w / 3, h - 1), hlt.entity.Position(w / 3, 1),
+        # hlt.entity.Position(2 * w / 3, 1)]
 
     for planet in all_planets:
         if planet.owner != planet_owners[planet.id]:
@@ -309,7 +310,11 @@ while True:
                 if closest_docked_ship:
                     orders[ship] = closest_docked_ship
                 else:
-                    orders[ship] = bot_utils.get_closest(ship, game_map.get_me().all_ships())
+                    friendlies = [friendly for friendly in game_map.get_me().all_ships() if friendly is not ship]
+                    if len(friendlies) == 0:
+                        orders[ship] = bot_utils.extend_ray(nearest_enemy, ship, 10)
+                    else:
+                        orders[ship] = bot_utils.get_closest(ship, friendlies)
 
     # 4 LOGGING
     logging_orders = {}
@@ -378,7 +383,16 @@ while True:
                 max_horizon=max_horizon,
                 padding=padding,
                 avoid_entities=avoid_entities,
-                horizon_reduction_rate=horizon_reduction_rate)
+                horizon_reduction_rate=horizon_reduction_rate,
+                min_horizon=min_horizon)
+            # command = ship.scan_navigate(
+            #     ship.closest_point_to(target, min_distance=approach_dist),
+            #     game_map,
+            #     angular_step=angular_step,
+            #     max_corrections=max_corrections,
+            #     max_horizon=max_horizon,
+            #     padding=padding,
+            #     avoid_entities=avoid_entities)
             if command:
                 command_queue.append(command)
 
