@@ -374,8 +374,8 @@ class Ship(Entity):
                       padding, avoid_entities):
         avoid_entities = game_map.get_relevant_obstacles(self, max_horizon, avoid_entities)
         straight_angle = self.calculate_angle_between(target)
+        speed = min(constants.MAX_SPEED, self.calculate_distance_between(target))
         if not game_map.obstacles_between(self, target, (), padding, avoid_entities):
-            speed = min(constants.MAX_SPEED, self.calculate_distance_between(target))
             return self.thrust(speed, straight_angle)
 
         angle_proximity_table = []
@@ -383,17 +383,18 @@ class Ship(Entity):
                         avoid_entities, max_horizon, angle_proximity_table)
         self.scan_angle(target, game_map, max_corrections, -angular_step, padding,
                         avoid_entities, max_horizon, angle_proximity_table)
-        logging.info([(round(item[0]), round(item[1])) for item in angle_proximity_table])
+        logging.info(['Angle proximity table for', self.id]+[(round(item[0]), round(item[1])) for item in angle_proximity_table])
+        logging.info(['Avoid for', self.id]+[avoid_entity for avoid_entity in avoid_entities])
         best_angle = None
         best_speed = None
         best_score = -math.inf
         for angle, distance in angle_proximity_table:
-            speed = min(distance, constants.MAX_SPEED)
+            look_ahead = min(distance, speed)
             deflection_angle = abs(angle - straight_angle) % 360
-            score = math.cos(math.radians(deflection_angle)) * speed
+            score = math.cos(math.radians(deflection_angle)) * distance
             if score > best_score:
                 best_angle = angle
-                best_speed = speed
+                best_speed = look_ahead
                 best_score = score
         if best_angle is None or best_speed is None:
             return None
@@ -406,8 +407,8 @@ class Ship(Entity):
             return
         distance = min(self.calculate_distance_between(target), max_horizon)
         angle = self.calculate_angle_between(target)
-        obstacles = game_map.obstacles_between(self, target, (), padding, avoid_entities)
-        angle_proximity_table.append((angle, self.closest_obstacle_dist(obstacles, max_horizon)))
+
+        angle_proximity_table.append((angle, game_map.scan_distance(self, target, padding, avoid_entities)))
 
         new_target_dx = math.cos(math.radians(angle + angular_step)) * distance
         new_target_dy = math.sin(math.radians(angle + angular_step)) * distance

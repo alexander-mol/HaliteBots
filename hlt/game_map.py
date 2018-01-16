@@ -154,6 +154,15 @@ class Map:
                 relevant_obstacles.append(entity)
         return relevant_obstacles
 
+    def scan_distance(self, ship, target, padding, avoid_entities):
+        min_dist = 1e4
+        for object in avoid_entities:
+            for intersection_point in collision.intersection(ship, target, object, ship.radius + padding):
+                dist = ship.calculate_distance_between(intersection_point)
+                if dist < min_dist:
+                    min_dist = dist
+        return min_dist
+
 
 
 class Player:

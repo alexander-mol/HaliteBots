@@ -11,7 +11,7 @@ import sys
 # evolutionary algorithm parameters
 pop_size = 10
 num_generations = 100
-fitness_num_games = 70
+fitness_num_games = 100
 mutation_rate = 0.3
 mutation_magnitude = 0.2
 
@@ -21,17 +21,19 @@ map_height = 192  # 192
 
 # competing bots
 rl_default_bot = 'micro-manager_rl_default.py'
-evolving_bot = 'better_clumps_bot.py'
+evolving_bot = 'micro-manager_evolved.py'
 comparison_bot = 'MyBot.py'
 
 # initialize pop
-base_params = {'defensive_action_radius': 34.6, 'max_response': 8, 'safe_docking_distance': 12.5,
-               'job_base_benefit': 71.6, 'attacking_relative_benefit': 1.5, 'defending_relative_benefit': 1.385,
-               'central_planet_relative_benefit': 1.0, 'available_ships_for_rogue_mission_trigger': 12,
-               'zone_dominance_factor_for_docking': 4.0, 'safety_check_radius': 12.0, 'support_radius': 8.0,
-               'attack_superiority_ratio': 1.19, 'rush_mode_proximity': 82.0, 'general_approach_dist': 3.7,
-               'dogfighting_approach_dist': 3.7, 'planet_approach_dist': 3.45, 'own_ship_approach_dist': 0.77,
-               'tether_dist': 1.375, 'padding': 0.14, 'max_horizon': 12.0}
+base_params = {'defensive_action_radius': 30.189406804098482, 'max_response': 12, 'safe_docking_distance': 13.26,
+               'job_base_benefit': 71.73509335719545, 'attacking_relative_benefit': 1.1,
+               'defending_relative_benefit': 1.5, 'central_planet_relative_benefit': 1.0,
+               'available_ships_for_rogue_mission_trigger': 12, 'zone_dominance_factor_for_docking': 5.898325843083396,
+               'safety_check_radius': 17.0, 'support_radius': 7.7, 'attack_superiority_ratio': 1.01,
+               'rush_mode_proximity': 94.09576212418199, 'fighting_opportunity_merge_distance': 20.0,
+               'general_approach_dist': 3.034795041716468, 'dogfighting_approach_dist': 4.107098036408979,
+               'planet_approach_dist': 3.020112860657823, 'own_ship_approach_dist': 0.1, 'tether_dist': 1.5,
+               'padding': 0.1, 'max_horizon': 7.5, 'min_horizon': 2.0, 'horizon_reduction_rate': 0.2}
 
 rl_new_params = {'defensive_action_radius': 56.189, 'max_response': 14, 'safe_docking_distance': 15.234,
                  'job_base_benefit': 70.755, 'attacking_relative_benefit': 1.193, 'defending_relative_benefit': 1.302,
@@ -268,6 +270,6 @@ def run_evolution(use_cache=False):
 
 # set_params(fill_params, 'better_clumps_bot.py')
 # run_reinforcement_learning()
-# run_evolution()
-print(get_fitness(200, feedback=True, use_seed=False))
+run_evolution()
+# print(get_fitness(200, feedback=True, use_seed=False))
 # print(map_seeds)
