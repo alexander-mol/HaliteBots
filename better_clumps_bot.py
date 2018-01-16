@@ -22,7 +22,7 @@ attack_superiority_ratio = 1.0
 rush_mode_proximity = 82.0
 
 # micro movement parameters
-fighting_opportunity_merge_distance = 10
+fighting_opportunity_merge_distance = 10.0
 general_approach_dist = 3.034795041716468
 dogfighting_approach_dist = 4.107098036408979
 planet_approach_dist = 3.45

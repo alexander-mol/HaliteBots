@@ -21,7 +21,7 @@ map_height = 192  # 192
 
 # competing bots
 rl_default_bot = 'micro-manager_rl_default.py'
-evolving_bot = 'micro-manager_evolved.py'
+evolving_bot = 'better_clumps_bot.py'
 comparison_bot = 'MyBot.py'
 
 # initialize pop
@@ -270,6 +270,6 @@ def run_evolution(use_cache=False):
 
 # set_params(fill_params, 'better_clumps_bot.py')
 # run_reinforcement_learning()
-run_evolution()
-# print(get_fitness(200, feedback=True, use_seed=False))
+# run_evolution()
+print(get_fitness(200, feedback=True, use_seed=False))
 # print(map_seeds)
