@@ -3,36 +3,36 @@ import bot_utils
 import logging
 import copy
 
-game = hlt.Game("Micro-Manager-Scan-Nav")
+game = hlt.Game("Micro-Manager-SS")
 
 # PARAMETERS
 # strategic parameters
-defensive_action_radius = 40.4
-max_response = 15
-safe_docking_distance = 15.2
-job_base_benefit = 73.4
+defensive_action_radius = 34.6
+max_response = 8
+safe_docking_distance = 12.5
+job_base_benefit = 71.6
 attacking_relative_benefit = 1.5
-defending_relative_benefit = 1.586
-central_planet_relative_benefit = 1.04
-available_ships_for_rogue_mission_trigger = 17
-zone_dominance_factor_for_docking = 3.55
-safety_check_radius = 10.59
-support_radius = 9.54
-attack_superiority_ratio = 0.843
-rush_mode_proximity = 82.37
+defending_relative_benefit = 1.385
+central_planet_relative_benefit = 1.0
+available_ships_for_rogue_mission_trigger = 12
+zone_dominance_factor_for_docking = 4.0
+safety_check_radius = 12.0
+support_radius = 8.0
+attack_superiority_ratio = 1.19
+rush_mode_proximity = 82.0
 
 # micro movement parameters
-fighting_opportunity_merge_distance = 7.3
-general_approach_dist = 3.06
-dogfighting_approach_dist = 4.89
-planet_approach_dist = 2.42
-own_ship_approach_dist = 0.02
-tether_dist = 0
-padding = 0.1
-max_horizon = 8.47
+general_approach_dist = 3.7
+dogfighting_approach_dist = 3.7
+planet_approach_dist = 3.45
+own_ship_approach_dist = 0.77
+tether_dist = 1.375
+padding = 0.14
+max_horizon = 12.0
 
 # navigation parameters
-angular_step = 5
+angular_step = 1
+max_corrections = int(180 / angular_step) + 1
 motion_ghost_points = 6
 use_unassigned_ships = True
 
@@ -73,9 +73,9 @@ while True:
         h = game_map.height
         collection_points = [hlt.entity.Position(1, 1), hlt.entity.Position(w - 1, 1), hlt.entity.Position(1, h - 1),
                              hlt.entity.Position(w - 1, h - 1)]
-        # hlt.entity.Position(w / 3, h - 1),
-        # hlt.entity.Position(2 * w / 3, h - 1), hlt.entity.Position(w / 3, 1),
-        # hlt.entity.Position(2 * w / 3, 1)]
+                             # hlt.entity.Position(w / 3, h - 1),
+                             # hlt.entity.Position(2 * w / 3, h - 1), hlt.entity.Position(w / 3, 1),
+                             # hlt.entity.Position(2 * w / 3, 1)]
 
     for planet in all_planets:
         if planet.owner != planet_owners[planet.id]:
@@ -208,34 +208,18 @@ while True:
     # rushing
     if len(my_docked_ships) == 0 and len(my_fighting_ships) <= 3 and len(game_map.all_players()) == 2:
         if len(bot_utils.get_proximity_alerts(my_fighting_ships, [rush_mode_proximity] * len(my_fighting_ships),
-                                              enemy_ships)) > 1:
+                                              enemy_ships)) > 0:
             closest_enemy = bot_utils.get_closest(my_fighting_ships[0], enemy_ships)
             fighting_opportunities.append(closest_enemy)
             alloc = {}
             for ship in my_fighting_ships:
                 alloc[ship] = closest_enemy
 
-    # merge fighting opportunities if they are close
-    merged_fighting_opp_map = {}
-    for i, ship1 in enumerate(fighting_opportunities):
-        for j, ship2 in enumerate(fighting_opportunities):
-            if i >= j:
-                continue
-            if ship1.calculate_distance_between(ship2) < fighting_opportunity_merge_distance:
-                if len([ship for ship in alloc.values() if ship is ship1]) > \
-                        len([ship for ship in alloc.values() if ship is ship2]):
-                    merged_fighting_opp_map[ship2] = ship1
-                else:
-                    merged_fighting_opp_map[ship1] = ship2
-    for ship in fighting_opportunities:
-        if ship not in merged_fighting_opp_map:
-            merged_fighting_opp_map[ship] = ship
-
     # sort ships by type of objective
-    potential_packs = {fighting_opportunity: [] for fighting_opportunity in merged_fighting_opp_map.values()}
+    potential_packs = {fighting_opportunity: [] for fighting_opportunity in fighting_opportunities}
     for ship, target in alloc.items():
         if target in fighting_opportunities:
-            potential_packs[merged_fighting_opp_map[target]].append(ship)
+            potential_packs[target].append(ship)
         elif target in good_dock_spots:
             orders[ship] = target
         my_unassigned_ships.remove(ship)
@@ -251,17 +235,13 @@ while True:
 
     # create packs from ships with the same objective
     packs = {}
-    followers = []
     for target, pack in potential_packs.items():
         if len(pack) > 1:
             leader = bot_utils.get_closest(target, pack)  # bot_utils.get_central_entity(pack)
-            pack_followers = [ship for ship in pack if ship != leader]
-            followers.extend(pack_followers)
-            packs[leader] = pack_followers
+            packs[leader] = [ship for ship in pack if ship != leader]
             orders[leader] = target
             for ship in packs[leader]:
                 orders[ship] = leader
-
         elif len(pack) == 1:
             orders[pack[0]] = target
 
@@ -274,45 +254,28 @@ while True:
                 my_free_navigation_ships.remove(follower)
     for leader, followers in tethered_followers.items():
         if len(followers) > 0:
-            new_radius = leader.calculate_distance_between(bot_utils.get_furthest(leader, followers)) + 0.5
-            planet_too_close = False
-            for planet in all_planets:
-                if planet.radius + new_radius > planet.calculate_distance_between(leader):
-                    planet_too_close = True
-            if not planet_too_close:
-                leader.radius = new_radius
-            else:
-                for ship in tethered_followers[leader]:
-                    my_free_navigation_ships.append(ship)
-                tethered_followers[leader] = []
+            leader.radius = leader.calculate_distance_between(bot_utils.get_furthest(leader, followers)) + 0.5
 
     # survival mode overwrites
-    if total_health <= int(total_health_high_water_mark * (1 - health_reduction_for_survival_mode)) and \
-            len(game_map.all_players()) == 4:
+    if total_health <= int(total_health_high_water_mark * (1 - health_reduction_for_survival_mode)):
         for ship in my_fighting_ships:
             orders[ship] = bot_utils.get_closest(ship, collection_points)
 
     # mission overwrite for safety
     for ship in my_free_navigation_ships:
-        if ship in followers:
-            continue
-        nearby_mobile_enemies = bot_utils.get_proximity_alerts([ship], [safety_check_radius], mobile_enemies)
-        if len(nearby_mobile_enemies) > 0:
-            nearest_enemy = bot_utils.get_closest(ship, nearby_mobile_enemies)
-            enemy_att = len(bot_utils.get_proximity_alerts([nearest_enemy], [support_radius], mobile_enemies))
-            enemy_def = len(bot_utils.get_proximity_alerts([nearest_enemy], [support_radius], enemy_ships))
-            my_att = len(bot_utils.get_proximity_alerts([ship], [support_radius], my_fighting_ships))
-            if enemy_att / my_att * attack_superiority_ratio > my_att / enemy_def:
+        nearby_enemies = bot_utils.get_proximity_alerts([ship], [safety_check_radius], mobile_enemies)
+        if len(nearby_enemies) > 0:
+            nearest_enemy = bot_utils.get_closest(ship, nearby_enemies)
+            enemy_support = len(bot_utils.get_proximity_alerts([nearest_enemy], [support_radius], mobile_enemies))
+            my_support = len(
+                bot_utils.get_proximity_alerts([ship], [support_radius], my_fighting_ships))
+            if enemy_support * attack_superiority_ratio > my_support:
                 # target the nearest docked ship
                 closest_docked_ship = bot_utils.get_closest(ship, my_docked_ships)
                 if closest_docked_ship:
                     orders[ship] = closest_docked_ship
                 else:
-                    friendlies = [friendly for friendly in game_map.get_me().all_ships() if friendly is not ship]
-                    if len(friendlies) == 0:
-                        orders[ship] = bot_utils.extend_ray(nearest_enemy, ship, 10)
-                    else:
-                        orders[ship] = bot_utils.get_closest(ship, friendlies)
+                    orders[ship] = bot_utils.get_closest(ship, game_map.get_me().all_ships())
 
     # 4 LOGGING
     logging_orders = {}
@@ -335,21 +298,14 @@ while True:
             avoid_entities.append(location_prediction[enemy])
         else:
             avoid_entities.append(enemy)
-    queue_entities = copy.copy(my_fighting_ships)
 
     # determine execution order
-    leaders = sorted(packs.keys(), key=lambda x: x.calculate_distance_between(location_prediction[orders[x]]) \
-                     if orders[x] in location_prediction else x.calculate_distance_between(orders[x]))
-    other_ships = [ship for ship in my_free_navigation_ships if ship not in leaders]
-    others = sorted(other_ships, key=lambda x: x.calculate_distance_between(location_prediction[orders[x]]) \
-                    if orders[x] in location_prediction else x.calculate_distance_between(orders[x]))
-    # execution_order = []
-    # for ship in packs:
-    #     execution_order.append(ship)
-    # for ship in my_free_navigation_ships:
-    #     if ship not in execution_order:
-    #         execution_order.append(ship)
-    execution_order = leaders + others
+    execution_order = []
+    for ship in packs:
+        execution_order.append(ship)
+    for ship in my_free_navigation_ships:
+        if ship not in execution_order:
+            execution_order.append(ship)
 
     command_queue = []
     for ship in execution_order:  # types of orders to expect: docking, go to enemy, go to leader, mimic leader
@@ -359,7 +315,6 @@ while True:
                 del rogue_missions_id[ship.id]
         else:
             avoid_entities.remove(ship)
-            queue_entities.remove(ship)
             if orders[ship] in game_map.get_me().all_ships():
                 approach_dist = own_ship_approach_dist
             elif isinstance(orders[ship], hlt.entity.Planet):
@@ -372,21 +327,12 @@ while True:
                 target = location_prediction[orders[ship]]
             else:
                 target = orders[ship]
-            # command = ship.smart_navigate(
-            #     ship.closest_point_to(target, min_distance=approach_dist),
-            #     game_map,
-            #     hlt.constants.MAX_SPEED,
-            #     angular_step=angular_step,
-            #     max_corrections=max_corrections,
-            #     max_horizon=max_horizon,
-            #     padding=padding,
-            #     avoid_entities=avoid_entities,
-            #     horizon_reduction_rate=horizon_reduction_rate,
-            #     min_horizon=min_horizon)
-            command = ship.scan_navigate(
+            command = ship.smart_navigate(
                 ship.closest_point_to(target, min_distance=approach_dist),
                 game_map,
+                hlt.constants.MAX_SPEED,
                 angular_step=angular_step,
+                max_corrections=max_corrections,
                 max_horizon=max_horizon,
                 padding=padding,
                 avoid_entities=avoid_entities)
@@ -405,11 +351,9 @@ while True:
             # add motion ghost points
             for i in range(1, motion_ghost_points + 1):
                 ghost_point_pos = (ship * (motion_ghost_points + 1 - i) + new_position * i) / (motion_ghost_points + 1)
-                ghost_point_pos.radius = ship.radius + own_ship_approach_dist
+                ghost_point_pos.radius = ship.radius
                 avoid_entities.append(ghost_point_pos)
-                queue_entities.append(ghost_point_pos)
             avoid_entities.append(new_position)
-            queue_entities.append(new_position)
             location_prediction[ship] = new_position
 
     delta_time = timer.get_time()
@@ -418,12 +362,13 @@ while True:
 
     # calculation speed throttling
     if delta_time > 1000:
-        # if motion_ghost_points > 4:
-        #     motion_ghost_points -= 1
-        #     logging.info(f'Decreased motion ghosting to {motion_ghost_points}')
-        if angular_step < 45:
+        if motion_ghost_points > 2:
+            motion_ghost_points -= 1
+            logging.info(f'Decreased motion ghosting to {motion_ghost_points}')
+        elif angular_step < 45:
             angular_step += 5
-            logging.info(f'Increased angular step to {angular_step}')
+            max_corrections = int(90 / angular_step) + 1
+            logging.info(f'Increased angular step to {angular_step}, with max corrections {max_corrections}')
         elif use_unassigned_ships:
             use_unassigned_ships = False
             logging.info(f'Set use_unassigned_ships to FALSE')

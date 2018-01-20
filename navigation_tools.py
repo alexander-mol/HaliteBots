@@ -29,12 +29,12 @@ def intersection(start, end, circle):
 
     return result
 
-angle = 136
-a = hlt.entity.Position(22.6, 124.1)
+angle = 0
+a = hlt.entity.Position(0, 0)
 b = hlt.entity.Position(a.x + math.cos(math.radians(angle)) * 8.5, a.y + math.sin(math.radians(angle)) * 8.5)
 
-c = hlt.entity.Position(61.5, 102.8)
-c.r = 0.5 + 0.6
+c = hlt.entity.Position(1, 0)
+c.r = 1.01
 d = hlt.entity.Position(15.48, 132.35)
 d.r = 5.2 + 0.6
 print(intersection(a, b, c))

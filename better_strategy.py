@@ -3,33 +3,33 @@ import bot_utils
 import logging
 import copy
 
-game = hlt.Game("Micro-Manager-Scan-Nav")
+game = hlt.Game("Better-Strategy")
 
 # PARAMETERS
 # strategic parameters
-defensive_action_radius = 40.4
-max_response = 15
-safe_docking_distance = 15.2
-job_base_benefit = 73.4
+defensive_action_radius = 34.6
+max_response = 12
+safe_docking_distance = 12.5
+job_base_benefit = 71.6
 attacking_relative_benefit = 1.5
-defending_relative_benefit = 1.586
-central_planet_relative_benefit = 1.04
-available_ships_for_rogue_mission_trigger = 17
-zone_dominance_factor_for_docking = 3.55
-safety_check_radius = 10.59
-support_radius = 9.54
-attack_superiority_ratio = 0.843
-rush_mode_proximity = 82.37
+defending_relative_benefit = 1.385
+central_planet_relative_benefit = 1.0
+available_ships_for_rogue_mission_trigger = 12
+zone_dominance_factor_for_docking = 4.0
+safety_check_radius = 12.0
+support_radius = 8.0
+attack_superiority_ratio = 1.0
+rush_mode_proximity = 82.0
 
 # micro movement parameters
-fighting_opportunity_merge_distance = 7.3
-general_approach_dist = 3.06
-dogfighting_approach_dist = 4.89
-planet_approach_dist = 2.42
+fighting_opportunity_merge_distance = 10.0
+general_approach_dist = 3.034795041716468
+dogfighting_approach_dist = 4.107098036408979
+planet_approach_dist = 3.45
 own_ship_approach_dist = 0.02
-tether_dist = 0
+tether_dist = 1
 padding = 0.1
-max_horizon = 8.47
+max_horizon = 11
 
 # navigation parameters
 angular_step = 5
@@ -149,6 +149,12 @@ while True:
     logging.info(f'Good planets: {["P"+str(planet.id) for planet in good_to_dock_planets]}')
     logging.info(f'Time used for good planet determination: {timer.get_time()}')
 
+    distraction_range = 50.0
+    max_distraction_response = 1
+    potential_distraction_planets = bot_utils.get_proximity_alerts(my_unassigned_ships,
+                                                                   [distraction_range] * len(my_unassigned_ships),
+                                                                   docked_enemy_ships)
+
     potential_rogue_missions = []
     if len(my_unassigned_ships) >= available_ships_for_rogue_mission_trigger:
         for planet_id, changes in planet_ownership_changes.items():
@@ -198,6 +204,14 @@ while True:
     if len(rogue_missions_id) > 0:
         logging.info(f'rogue_missions: {dict([(ship_id, planet.id) for ship_id, planet in rogue_missions_id.items()])}')
 
+    # handle distractions (maybe move after rogue missions)
+    distraction_alloc = \
+        bot_utils.get_minimal_distance_allocation(my_unassigned_ships,
+                                                  potential_distraction_planets * max_distraction_response)
+    for ship in distraction_alloc:
+        orders[ship] = distraction_alloc[ship]
+        my_unassigned_ships.remove(ship)
+
     alloc = bot_utils.get_maximal_benefit_allocation(my_unassigned_ships, good_opportunities, relative_benefit_factors,
                                                      job_base_benefit)
     logging_alloc = {f'S{ship.id}': f'P{target.id}' if isinstance(target, hlt.entity.Planet) else f'S{target.id}' for
@@ -206,13 +220,13 @@ while True:
     logging.info(f'Time to calculate minimal distance job allocation: {timer.get_time()} ms')
 
     # rushing
-    if len(my_docked_ships) == 0 and len(my_fighting_ships) <= 3 and len(game_map.all_players()) == 2:
-        if len(bot_utils.get_proximity_alerts(my_fighting_ships, [rush_mode_proximity] * len(my_fighting_ships),
+    if len(my_docked_ships) == 0 and len(my_unassigned_ships) <= 3 and len(game_map.all_players()) == 2:
+        if len(bot_utils.get_proximity_alerts(my_unassigned_ships, [rush_mode_proximity] * len(my_unassigned_ships),
                                               enemy_ships)) > 1:
             closest_enemy = bot_utils.get_closest(my_fighting_ships[0], enemy_ships)
             fighting_opportunities.append(closest_enemy)
             alloc = {}
-            for ship in my_fighting_ships:
+            for ship in my_unassigned_ships:
                 alloc[ship] = closest_enemy
 
     # merge fighting opportunities if they are close
@@ -288,9 +302,28 @@ while True:
 
     # survival mode overwrites
     if total_health <= int(total_health_high_water_mark * (1 - health_reduction_for_survival_mode)) and \
-            len(game_map.all_players()) == 4:
+                    len(game_map.all_players()) == 4:
         for ship in my_fighting_ships:
             orders[ship] = bot_utils.get_closest(ship, collection_points)
+
+    # distractor overwrite for safety
+    for ship in distraction_alloc:
+        # nearby_mobile_enemies = bot_utils.get_proximity_alerts([ship], [14], mobile_enemies)
+        # get mobile enemies with location prediction
+        nearby_mobile_enemies = []
+        for enemy in mobile_enemies:
+            if ship.calculate_distance_between(location_prediction[enemy]) < 16:
+                nearby_mobile_enemies.append(location_prediction[enemy])
+
+        if len(nearby_mobile_enemies) > 0:
+            direction = bot_utils.extend_ray(hlt.entity.Position(game_map.width/2, game_map.height/2), ship, 5)
+            # for enemy in nearby_mobile_enemies:
+            #     direction += bot_utils.extend_ray(enemy, ship, 1)
+            # direction /= len(nearby_mobile_enemies)
+            target = bot_utils.extend_ray(ship, direction, 20)
+            orders[ship] = target
+
+
 
     # mission overwrite for safety
     for ship in my_free_navigation_ships:
@@ -339,10 +372,10 @@ while True:
 
     # determine execution order
     leaders = sorted(packs.keys(), key=lambda x: x.calculate_distance_between(location_prediction[orders[x]]) \
-                     if orders[x] in location_prediction else x.calculate_distance_between(orders[x]))
+        if orders[x] in location_prediction else x.calculate_distance_between(orders[x]))
     other_ships = [ship for ship in my_free_navigation_ships if ship not in leaders]
     others = sorted(other_ships, key=lambda x: x.calculate_distance_between(location_prediction[orders[x]]) \
-                    if orders[x] in location_prediction else x.calculate_distance_between(orders[x]))
+        if orders[x] in location_prediction else x.calculate_distance_between(orders[x]))
     # execution_order = []
     # for ship in packs:
     #     execution_order.append(ship)

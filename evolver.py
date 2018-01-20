@@ -21,19 +21,18 @@ map_height = 192  # 192
 
 # competing bots
 rl_default_bot = 'micro-manager_rl_default.py'
-evolving_bot = 'better_clumps_bot.py'
-comparison_bot = 'MyBot.py'
+evolving_bot = 'micro-manager_evolved.py'
+comparison_bot = 'better_clumps_bot.py'
 
 # initialize pop
-base_params = {'defensive_action_radius': 30.189406804098482, 'max_response': 12, 'safe_docking_distance': 13.26,
-               'job_base_benefit': 71.73509335719545, 'attacking_relative_benefit': 1.1,
-               'defending_relative_benefit': 1.5, 'central_planet_relative_benefit': 1.0,
-               'available_ships_for_rogue_mission_trigger': 12, 'zone_dominance_factor_for_docking': 5.898325843083396,
-               'safety_check_radius': 17.0, 'support_radius': 7.7, 'attack_superiority_ratio': 1.01,
-               'rush_mode_proximity': 94.09576212418199, 'fighting_opportunity_merge_distance': 20.0,
-               'general_approach_dist': 3.034795041716468, 'dogfighting_approach_dist': 4.107098036408979,
-               'planet_approach_dist': 3.020112860657823, 'own_ship_approach_dist': 0.1, 'tether_dist': 1.5,
-               'padding': 0.1, 'max_horizon': 7.5, 'min_horizon': 2.0, 'horizon_reduction_rate': 0.2}
+base_params = {'defensive_action_radius': 34.6, 'max_response': 12, 'safe_docking_distance': 12.5,
+               'job_base_benefit': 71.6, 'attacking_relative_benefit': 1.5, 'defending_relative_benefit': 1.385,
+               'central_planet_relative_benefit': 1.0, 'available_ships_for_rogue_mission_trigger': 12,
+               'zone_dominance_factor_for_docking': 4.0, 'safety_check_radius': 12.0, 'support_radius': 8.0,
+               'attack_superiority_ratio': 1.0, 'rush_mode_proximity': 82.0,
+               'fighting_opportunity_merge_distance': 10.0, 'general_approach_dist': 3.034795041716468,
+               'dogfighting_approach_dist': 4.107098036408979, 'planet_approach_dist': 3.45,
+               'own_ship_approach_dist': 0.02, 'tether_dist': 1, 'padding': 0.1, 'max_horizon': 11.0}
 
 rl_new_params = {'defensive_action_radius': 56.189, 'max_response': 14, 'safe_docking_distance': 15.234,
                  'job_base_benefit': 70.755, 'attacking_relative_benefit': 1.193, 'defending_relative_benefit': 1.302,
@@ -42,26 +41,16 @@ rl_new_params = {'defensive_action_radius': 56.189, 'max_response': 14, 'safe_do
                  'dogfighting_approach_dist': 2.956, 'planet_approach_dist': 3.451, 'leader_approach_dist': 0.348,
                  'tether_dist': 1.324, 'padding': 0.079}
 
-fill_params = {'attack_superiority_ratio': 0.9925710709622071,
-               'attacking_relative_benefit': 1.052789669520592,
-               'available_ships_for_rogue_mission_trigger': 12,
-               'central_planet_relative_benefit': 0.8926327212078141,
-               'defending_relative_benefit': 1.248641506352455,
-               'defensive_action_radius': 30.189406804098482,
-               'dogfighting_approach_dist': 4.107098036408979,
-               'general_approach_dist': 3.034795041716468,
-               'job_base_benefit': 71.73509335719545,
-               'max_horizon': 8.238405766472612,
-               'max_response': 7,
-               'own_ship_approach_dist': 0.9069865875327943,
-               'padding': 0.116521697542258,
-               'planet_approach_dist': 3.020112860657823,
-               'rush_mode_proximity': 94.09576212418199,
-               'safe_docking_distance': 13.262919132584583,
-               'safety_check_radius': 13.89285327188173,
-               'support_radius': 7.697046463216647,
-               'tether_dist': 1.1328976603859422,
-               'zone_dominance_factor_for_docking': 5.898325843083396}
+fill_params = {'defensive_action_radius': 40.41784443102191, 'max_response': 15,
+               'safe_docking_distance': 15.209941772875288, 'job_base_benefit': 73.37055105845447,
+               'attacking_relative_benefit': 1.5, 'defending_relative_benefit': 1.586301199642463,
+               'central_planet_relative_benefit': 1.0405486998450906, 'available_ships_for_rogue_mission_trigger': 17,
+               'zone_dominance_factor_for_docking': 3.5506637948556747, 'safety_check_radius': 10.587396217067933,
+               'support_radius': 9.539650356792974, 'attack_superiority_ratio': 0.8427586758853859,
+               'rush_mode_proximity': 82.37202764447873, 'fighting_opportunity_merge_distance': 7.303927664460784,
+               'general_approach_dist': 3.063680991335634, 'dogfighting_approach_dist': 4.8917368254157445,
+               'planet_approach_dist': 2.4298458418631146, 'own_ship_approach_dist': 0.020312912856007535,
+               'tether_dist': 1, 'padding': 0.1, 'max_horizon': 8.463170086309406}
 
 with open('map_seeds.p', 'rb') as f:
     map_seeds = _pickle.load(f)
@@ -114,9 +103,14 @@ def run_game(i, bot1, bot2, use_seed):
     else:
         query, target_pos = get_query(i, bot1, bot2)
     result = subprocess.run(query, stdout=subprocess.PIPE).stdout.decode('utf-8')
-    rank = re.findall(f'Player #{target_pos}, .*?, came in rank #(.*?) and', result)[0]
-    ship_prod = re.findall(f'producing (\d*?) ships', result)
-    logger.info(re.sub('Turn (.*?)\n', '', result))
+    try:
+        rank = re.findall(f'Player #{target_pos}, .*?, came in rank #(.*?) and', result)[0]
+        ship_prod = re.findall(f'producing (\d*?) ships', result)
+        logger.info(re.sub('Turn (.*?)\n', '', result))
+    except:
+        logger.info('Error: Something went wrong with the outputs.')
+        rank = '2'
+        ship_prod = [0, 0]
     # map_seed = re.findall('Map seed was (.*?)\n', result)[0]
     # map_seeds.append(map_seed)
     return rank == '1', int(ship_prod[i % 2]), int(ship_prod[(i + 1) % 2])
@@ -217,7 +211,7 @@ def run_reinforcement_learning():
         t = time.time()
 
 
-def run_evolution(use_cache=False):
+def run_evolution(use_cache=False, use_seed=False):
     # if use_cache:
     #     with open('pop_cache.p', 'rb') as f:
     #         pop_cache = _pickle.load(f)
@@ -247,7 +241,7 @@ def run_evolution(use_cache=False):
         # fitness
         for i, ind in enumerate(pop[mid_point:]):
             set_params(ind[0])
-            pop[mid_point + i] = (ind[0], get_fitness(fitness_num_games, early_stop_bad=True)[0])
+            pop[mid_point + i] = (ind[0], get_fitness(fitness_num_games, early_stop_bad=True, use_seed=use_seed)[0])
 
         # sort
         pop.sort(key=lambda x: -x[1])
@@ -268,8 +262,8 @@ def run_evolution(use_cache=False):
         f'Finished in {round(t - t0)} s, or {round((t - t0)/(pop_size * num_generations * fitness_num_games), 1)} per game.')
 
 
-# set_params(fill_params, 'better_clumps_bot.py')
+# set_params(fill_params, 'micro-manager_evolved.py')
 # run_reinforcement_learning()
-# run_evolution()
+# run_evolution(use_seed=False)
 print(get_fitness(200, feedback=True, use_seed=False))
 # print(map_seeds)

@@ -27,15 +27,12 @@ general_approach_dist = 3.034795041716468
 dogfighting_approach_dist = 4.107098036408979
 planet_approach_dist = 3.45
 own_ship_approach_dist = 0.02
-tether_dist = 0 # 1.5
+tether_dist = 1
 padding = 0.1
 max_horizon = 11
-min_horizon = 2.0
-horizon_reduction_rate = 0.16
 
 # navigation parameters
 angular_step = 5
-max_corrections = int(180 / angular_step) + 1
 motion_ghost_points = 6
 use_unassigned_ships = True
 
@@ -390,7 +387,6 @@ while True:
                 ship.closest_point_to(target, min_distance=approach_dist),
                 game_map,
                 angular_step=angular_step,
-                max_corrections=max_corrections,
                 max_horizon=max_horizon,
                 padding=padding,
                 avoid_entities=avoid_entities)
@@ -427,8 +423,7 @@ while True:
         #     logging.info(f'Decreased motion ghosting to {motion_ghost_points}')
         if angular_step < 45:
             angular_step += 5
-            max_corrections = int(90 / angular_step) + 1
-            logging.info(f'Increased angular step to {angular_step}, with max corrections {max_corrections}')
+            logging.info(f'Increased angular step to {angular_step}')
         elif use_unassigned_ships:
             use_unassigned_ships = False
             logging.info(f'Set use_unassigned_ships to FALSE')

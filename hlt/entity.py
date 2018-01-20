@@ -370,51 +370,81 @@ class Ship(Entity):
                                   avoid_entities, max_horizon, horizon_reduction_rate, min_horizon)
         return angle, distance
 
-    def scan_navigate(self, target, game_map, max_corrections, angular_step, max_horizon,
-                      padding, avoid_entities):
+    def scan_navigate(self, target, game_map, angular_step, max_horizon, padding, avoid_entities):
         avoid_entities = game_map.get_relevant_obstacles(self, max_horizon, avoid_entities)
         straight_angle = self.calculate_angle_between(target)
         speed = min(constants.MAX_SPEED, self.calculate_distance_between(target))
         if not game_map.obstacles_between(self, target, (), padding, avoid_entities):
             return self.thrust(speed, straight_angle)
 
+        distance = min(self.calculate_distance_between(target), max_horizon)
         angle_proximity_table = []
-        self.scan_angle(target, game_map, max_corrections, angular_step, padding,
-                        avoid_entities, max_horizon, angle_proximity_table)
-        self.scan_angle(target, game_map, max_corrections, -angular_step, padding,
-                        avoid_entities, max_horizon, angle_proximity_table)
-        logging.info(['Angle proximity table for', self.id]+[(round(item[0]), round(item[1])) for item in angle_proximity_table])
-        logging.info(['Avoid for', self.id]+[avoid_entity for avoid_entity in avoid_entities])
+        angle_counter = 0
+        angle = (straight_angle + angle_counter) % 360
+        while abs(angle_counter) < 90:
+            proximity = game_map.scan_distance(self, target, padding, avoid_entities)
+            forward_motion = min(proximity, speed)
+            score = math.cos(math.radians(angle_counter)) * proximity
+            # if score > 1 * speed:  # early stopping (for faster evaluation)
+            #     return self.thrust(forward_motion, angle)
+
+            angle_proximity_table.append((angle, forward_motion, score))
+
+            if angle_counter > 0:
+                angle_counter = -angle_counter
+            else:
+                angle_counter = -1 * angle_counter + angular_step
+            angle = (straight_angle + angle_counter) % 360
+            new_target_dx = math.cos(math.radians(angle)) * distance
+            new_target_dy = math.sin(math.radians(angle)) * distance
+            target = Position(self.x + new_target_dx, self.y + new_target_dy)
+        # self.scan_angles(target, game_map, max_corrections, angular_step, padding,
+        #                 avoid_entities, max_horizon, angle_proximity_table)
+        # self.scan_angle(target, game_map, max_corrections, -angular_step, padding,
+        #                 avoid_entities, max_horizon, angle_proximity_table)
+        logging.info(['Angle proximity table for', self.id] + [(round(item[0]), round(item[1])) for item in
+                                                               angle_proximity_table])
         best_angle = None
         best_speed = None
         best_score = -math.inf
-        for angle, distance in angle_proximity_table:
-            look_ahead = min(distance, speed)
-            deflection_angle = abs(angle - straight_angle) % 360
-            score = math.cos(math.radians(deflection_angle)) * distance
+        for angle, forward_motion, score in angle_proximity_table:
             if score > best_score:
                 best_angle = angle
-                best_speed = look_ahead
+                best_speed = forward_motion
                 best_score = score
         if best_angle is None or best_speed is None:
             return None
         else:
             return self.thrust(best_speed, best_angle)
 
-    def scan_angle(self, target, game_map, max_corrections, angular_step, padding,
+    # def scan_angle(self, target, game_map, max_corrections, angular_step, padding,
+    #                avoid_entities, max_horizon, angle_proximity_table):
+    #     if max_corrections <= 0:
+    #         return
+    #     distance = min(self.calculate_distance_between(target), max_horizon)
+    #     angle = self.calculate_angle_between(target)
+    #
+    #     angle_proximity_table.append((angle, game_map.scan_distance(self, target, padding, avoid_entities)))
+    #
+    #     new_target_dx = math.cos(math.radians(angle + angular_step)) * distance
+    #     new_target_dy = math.sin(math.radians(angle + angular_step)) * distance
+    #     new_target = Position(self.x + new_target_dx, self.y + new_target_dy)
+    #     return self.scan_angle(new_target, game_map, max_corrections - 1, angular_step, padding,
+    #                            avoid_entities, max_horizon, angle_proximity_table)
+    def scan_angles(self, target, game_map, max_corrections, angular_step, padding,
                    avoid_entities, max_horizon, angle_proximity_table):
-        if max_corrections <= 0:
-            return
         distance = min(self.calculate_distance_between(target), max_horizon)
-        angle = self.calculate_angle_between(target)
+        straight_angle = self.calculate_angle_between(target)
+        angle_counter = 0
+        angle = (straight_angle + angle_counter) % 360
+        while angle_counter < 360:
+            angle_proximity_table.append((angle, game_map.scan_distance(self, target, padding, avoid_entities)))
 
-        angle_proximity_table.append((angle, game_map.scan_distance(self, target, padding, avoid_entities)))
-
-        new_target_dx = math.cos(math.radians(angle + angular_step)) * distance
-        new_target_dy = math.sin(math.radians(angle + angular_step)) * distance
-        new_target = Position(self.x + new_target_dx, self.y + new_target_dy)
-        return self.scan_angle(new_target, game_map, max_corrections - 1, angular_step, padding,
-                               avoid_entities, max_horizon, angle_proximity_table)
+            angle_counter += angular_step
+            angle = (straight_angle + angle_counter) % 360
+            new_target_dx = math.cos(math.radians(angle)) * distance
+            new_target_dy = math.sin(math.radians(angle)) * distance
+            target = Position(self.x + new_target_dx, self.y + new_target_dy)
 
     def closest_obstacle_dist(self, obstacles, max_horizon):
         min_seen = max_horizon

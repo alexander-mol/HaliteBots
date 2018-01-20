@@ -7,35 +7,32 @@ game = hlt.Game("Micro-Manager-Evolved")
 
 # PARAMETERS
 # strategic parameters
-defensive_action_radius = 30.189406804098482
-max_response = 12
-safe_docking_distance = 12.60828625013777
-job_base_benefit = 63.45046806574438
-attacking_relative_benefit = 1.1
-defending_relative_benefit = 1.5
-central_planet_relative_benefit = 1.1236655632195074
-available_ships_for_rogue_mission_trigger = 12
-zone_dominance_factor_for_docking = 5.898325843083396
-safety_check_radius = 17.0
-support_radius = 7.7
-attack_superiority_ratio = 1.0744748899580046
-rush_mode_proximity = 110.89514650659132
+defensive_action_radius = 40.4
+max_response = 15
+safe_docking_distance = 15.2
+job_base_benefit = 73.4
+attacking_relative_benefit = 1.5
+defending_relative_benefit = 1.586
+central_planet_relative_benefit = 1.04
+available_ships_for_rogue_mission_trigger = 17
+zone_dominance_factor_for_docking = 3.55
+safety_check_radius = 10.59
+support_radius = 9.54
+attack_superiority_ratio = 0.843
+rush_mode_proximity = 82.37
 
 # micro movement parameters
-fighting_opportunity_merge_distance = 17.797897143310703
-general_approach_dist = 2.879891449829525
-dogfighting_approach_dist = 4.876473953432807
-planet_approach_dist = 3.020112860657823
-own_ship_approach_dist = 0.11482794160089155
-tether_dist = 1.2468558941953611
-padding = 0.10396727229321702
-max_horizon = 8.532701665506579
-min_horizon = 1.8068879176373236
-horizon_reduction_rate = 0.13275655224103955
+fighting_opportunity_merge_distance = 7.3
+general_approach_dist = 3.06
+dogfighting_approach_dist = 4.89
+planet_approach_dist = 2.42
+own_ship_approach_dist = 0.02
+tether_dist = 0
+padding = 0.1
+max_horizon = 8.47
 
 # navigation parameters
-angular_step = 1
-max_corrections = int(180 / angular_step) + 1
+angular_step = 5
 motion_ghost_points = 6
 use_unassigned_ships = True
 
@@ -297,8 +294,8 @@ while True:
 
     # mission overwrite for safety
     for ship in my_free_navigation_ships:
-        if ship in followers:
-            continue
+        # if ship in followers:
+        #     continue
         nearby_mobile_enemies = bot_utils.get_proximity_alerts([ship], [safety_check_radius], mobile_enemies)
         if len(nearby_mobile_enemies) > 0:
             nearest_enemy = bot_utils.get_closest(ship, nearby_mobile_enemies)
@@ -375,25 +372,24 @@ while True:
                 target = location_prediction[orders[ship]]
             else:
                 target = orders[ship]
-            command = ship.smart_navigate(
-                ship.closest_point_to(target, min_distance=approach_dist),
-                game_map,
-                hlt.constants.MAX_SPEED,
-                angular_step=angular_step,
-                max_corrections=max_corrections,
-                max_horizon=max_horizon,
-                padding=padding,
-                avoid_entities=avoid_entities,
-                horizon_reduction_rate=horizon_reduction_rate,
-                min_horizon=min_horizon)
-            # command = ship.scan_navigate(
+            # command = ship.smart_navigate(
             #     ship.closest_point_to(target, min_distance=approach_dist),
             #     game_map,
+            #     hlt.constants.MAX_SPEED,
             #     angular_step=angular_step,
             #     max_corrections=max_corrections,
             #     max_horizon=max_horizon,
             #     padding=padding,
-            #     avoid_entities=avoid_entities)
+            #     avoid_entities=avoid_entities,
+            #     horizon_reduction_rate=horizon_reduction_rate,
+            #     min_horizon=min_horizon)
+            command = ship.scan_navigate(
+                ship.closest_point_to(target, min_distance=approach_dist),
+                game_map,
+                angular_step=angular_step,
+                max_horizon=max_horizon,
+                padding=padding,
+                avoid_entities=avoid_entities)
             if command:
                 command_queue.append(command)
 
@@ -427,8 +423,7 @@ while True:
         #     logging.info(f'Decreased motion ghosting to {motion_ghost_points}')
         if angular_step < 45:
             angular_step += 5
-            max_corrections = int(90 / angular_step) + 1
-            logging.info(f'Increased angular step to {angular_step}, with max corrections {max_corrections}')
+            logging.info(f'Increased angular step to {angular_step}')
         elif use_unassigned_ships:
             use_unassigned_ships = False
             logging.info(f'Set use_unassigned_ships to FALSE')
