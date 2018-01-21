@@ -4,6 +4,8 @@ import logging
 import copy
 
 game = hlt.Game("Micro-Manager-Scan-Nav")
+game_map = game.update_map()
+four_players = len(game_map.all_players()) == 4
 
 # PARAMETERS
 # strategic parameters
@@ -20,6 +22,13 @@ safety_check_radius = 10.59
 support_radius = 9.54
 attack_superiority_ratio = 0.843
 rush_mode_proximity = 82.37
+benefit_per_extra_dock_spot = 0.1
+
+if four_players:
+    max_response = 4
+    central_planet_relative_benefit = 0.9
+    safety_check_radius = 17
+    attack_superiority_ratio = 1.2
 
 # micro movement parameters
 fighting_opportunity_merge_distance = 7.3
@@ -39,7 +48,6 @@ use_unassigned_ships = True
 # cheeky params
 health_reduction_for_survival_mode = 0.6
 
-type_table = {}  # e.g. id -> string
 enemy_tracking = {}
 planet_ownership_changes = {}
 planet_owners = {}
@@ -55,7 +63,8 @@ collection_points = []
 
 t = 0
 while True:
-    game_map = game.update_map()
+    if t > 0:
+        game_map = game.update_map()
     logging.info(f't = {t}')
     timer = bot_utils.Timer()
 
@@ -73,9 +82,6 @@ while True:
         h = game_map.height
         collection_points = [hlt.entity.Position(1, 1), hlt.entity.Position(w - 1, 1), hlt.entity.Position(1, h - 1),
                              hlt.entity.Position(w - 1, h - 1)]
-        # hlt.entity.Position(w / 3, h - 1),
-        # hlt.entity.Position(2 * w / 3, h - 1), hlt.entity.Position(w / 3, 1),
-        # hlt.entity.Position(2 * w / 3, 1)]
 
     for planet in all_planets:
         if planet.owner != planet_owners[planet.id]:
@@ -99,18 +105,6 @@ while True:
         total_health += ship.health
     if total_health > total_health_high_water_mark:
         total_health_high_water_mark = total_health
-
-    # update type table
-    logging.info(f'my unassigned ships: ({len(my_unassigned_ships)}) {[ship.id for ship in my_unassigned_ships]}')
-    # remove dead guys
-    for ship_id in list(type_table.keys()):
-        if ship_id not in all_my_ship_ids:
-            del type_table[ship_id]
-    # add new guys
-    for ship in my_fighting_ships:
-        if ship.id not in type_table:
-            type_table[ship.id] = 'interceptor'
-    # logging.info(f'type_table: {type_table}')
 
     # collect enemy stuff
     enemy_planets = [planet for planet in all_planets if planet.owner not in [None, game_map.get_me()]]
@@ -160,10 +154,11 @@ while True:
     for planet in good_to_dock_planets:
         for _ in range(planet.num_docking_spots - len(planet.all_docked_ships())):
             good_dock_spots.append(planet)
+            base_benefit = (max(planet.num_docking_spots, 3) - 3) * benefit_per_extra_dock_spot + 1
             if planet.id in [0, 1, 2, 3]:
-                dock_spot_relative_benefits.append(central_planet_relative_benefit)
+                dock_spot_relative_benefits.append(base_benefit * central_planet_relative_benefit)
             else:
-                dock_spot_relative_benefits.append(1)
+                dock_spot_relative_benefits.append(base_benefit)
 
     fighting_opportunities = (docked_enemy_ships + proximal_enemy_ships) * max_response
     good_opportunities = good_dock_spots + fighting_opportunities
@@ -343,12 +338,6 @@ while True:
     other_ships = [ship for ship in my_free_navigation_ships if ship not in leaders]
     others = sorted(other_ships, key=lambda x: x.calculate_distance_between(location_prediction[orders[x]]) \
                     if orders[x] in location_prediction else x.calculate_distance_between(orders[x]))
-    # execution_order = []
-    # for ship in packs:
-    #     execution_order.append(ship)
-    # for ship in my_free_navigation_ships:
-    #     if ship not in execution_order:
-    #         execution_order.append(ship)
     execution_order = leaders + others
 
     command_queue = []
@@ -372,17 +361,6 @@ while True:
                 target = location_prediction[orders[ship]]
             else:
                 target = orders[ship]
-            # command = ship.smart_navigate(
-            #     ship.closest_point_to(target, min_distance=approach_dist),
-            #     game_map,
-            #     hlt.constants.MAX_SPEED,
-            #     angular_step=angular_step,
-            #     max_corrections=max_corrections,
-            #     max_horizon=max_horizon,
-            #     padding=padding,
-            #     avoid_entities=avoid_entities,
-            #     horizon_reduction_rate=horizon_reduction_rate,
-            #     min_horizon=min_horizon)
             command = ship.scan_navigate(
                 ship.closest_point_to(target, min_distance=approach_dist),
                 game_map,

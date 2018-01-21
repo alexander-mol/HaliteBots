@@ -11,7 +11,7 @@ import sys
 # evolutionary algorithm parameters
 pop_size = 10
 num_generations = 100
-fitness_num_games = 100
+fitness_num_games = 20
 mutation_rate = 0.3
 mutation_magnitude = 0.2
 
@@ -21,18 +21,30 @@ map_height = 192  # 192
 
 # competing bots
 rl_default_bot = 'micro-manager_rl_default.py'
-evolving_bot = 'micro-manager_evolved.py'
-comparison_bot = 'better_clumps_bot.py'
+evolving_bot = 'MyBot.py'
+comparison_bot = 'MyBot_v6.py'
 
 # initialize pop
-base_params = {'defensive_action_radius': 34.6, 'max_response': 12, 'safe_docking_distance': 12.5,
-               'job_base_benefit': 71.6, 'attacking_relative_benefit': 1.5, 'defending_relative_benefit': 1.385,
-               'central_planet_relative_benefit': 1.0, 'available_ships_for_rogue_mission_trigger': 12,
-               'zone_dominance_factor_for_docking': 4.0, 'safety_check_radius': 12.0, 'support_radius': 8.0,
-               'attack_superiority_ratio': 1.0, 'rush_mode_proximity': 82.0,
-               'fighting_opportunity_merge_distance': 10.0, 'general_approach_dist': 3.034795041716468,
-               'dogfighting_approach_dist': 4.107098036408979, 'planet_approach_dist': 3.45,
-               'own_ship_approach_dist': 0.02, 'tether_dist': 1, 'padding': 0.1, 'max_horizon': 11.0}
+base_params = {'defensive_action_radius': 40.4,
+               'max_response': 15,
+               'safe_docking_distance': 15.2,
+               'job_base_benefit': 73.4,
+               'attacking_relative_benefit': 1.5,
+               'defending_relative_benefit': 1.586,
+               'central_planet_relative_benefit': 1.04,
+               'available_ships_for_rogue_mission_trigger': 17,
+               'zone_dominance_factor_for_docking': 3.55,
+               'safety_check_radius': 12.0,
+               'support_radius': 5.0,
+               'attack_superiority_ratio': 1.19,
+               'fighting_opportunity_merge_distance': 5.0,
+               'general_approach_dist': 3.06,
+               'dogfighting_approach_dist': 4.89,
+               'planet_approach_dist': 2.42,
+               'tether_dist': 1.0,
+               'padding': 0.1,
+               'max_horizon': 8.47}
+
 
 rl_new_params = {'defensive_action_radius': 56.189, 'max_response': 14, 'safe_docking_distance': 15.234,
                  'job_base_benefit': 70.755, 'attacking_relative_benefit': 1.193, 'defending_relative_benefit': 1.302,
@@ -96,10 +108,30 @@ def get_query_windows(i, bot1=None, bot2=None, timeouts=True, use_seed=True):
         query.append('-t')
     return [path] + query, 0 if bot1 == evolving_bot else 1
 
+def get_query_windows_4_player(i, bot1=None, bot2=None, timeouts=True, use_seed=True):
+    path = 'C:/Users/alexa/Documents/Halite2_Python3_Windows/halite.exe'
+    if not bot1 and not bot2:
+        bot1, bot2 = evolving_bot, comparison_bot
+    elif not (bot1 and bot2):
+        print('Only one bot given!')
+        exit()
+    if i % 2 == 1:
+        query = ['-d', f'{map_width} {map_height}', f'python {bot2}', f'python {bot1}', f'python {bot2}', f'python {bot2}']
+    else:
+        query = ['-d', f'{map_width} {map_height}', f'python {bot1}', f'python {bot2}', f'python {bot2}',
+                 f'python {bot2}']
+    if use_seed:
+        query.extend(['-s', f'{map_seeds[i]}'])
+    if not timeouts:
+        query.append('-t')
+    return [path] + query, i % 2
 
-def run_game(i, bot1, bot2, use_seed):
+def run_game(i, bot1, bot2, use_seed, four):
     if sys.platform == 'win32':
-        query, target_pos = get_query_windows(i, bot1, bot2, use_seed=use_seed)
+        if four:
+            query, target_pos = get_query_windows_4_player(i, bot1, bot2, use_seed=use_seed)
+        else:
+            query, target_pos = get_query_windows(i, bot1, bot2, use_seed=use_seed)
     else:
         query, target_pos = get_query(i, bot1, bot2)
     result = subprocess.run(query, stdout=subprocess.PIPE).stdout.decode('utf-8')
@@ -117,17 +149,17 @@ def run_game(i, bot1, bot2, use_seed):
 
 
 def get_fitness(num_games, id=None, feedback=False, early_stop_bad=False, early_stop_good=False,
-                early_stop_trigger=0.05, bot1=None, bot2=None, use_seed=True):
+                early_stop_trigger=0.05, bot1=None, bot2=None, use_seed=True, four=False):
     win_count = 0
     ships_target, ships_opponent = 0, 0
     for i in range(num_games):
         if id:
             i = id + str(i)
-        outcome, ships_t, ships_o = run_game(i, bot1, bot2, use_seed=use_seed)
+        outcome, ships_t, ships_o = run_game(i, bot1, bot2, use_seed=use_seed, four=four)
         win_count += outcome
         ships_target += ships_t
         ships_opponent += ships_o
-        ph0 = get_p_null_hypothesis(win_count, i + 1)
+        ph0 = get_p_null_hypothesis(win_count, i + 1, 0.25 if four else 0.5)
         log_message = f'At game {i+1} of {num_games}. Target won {win_count} / {i+1}, or' \
                       f' {round(100*win_count/(i+1))}%. p(H0) = {ph0}, running average time per game:' \
                       f' {round((time.time() - t0)/(i+1), 1)}. Ships produced by target {ships_target} vs ' \
@@ -144,10 +176,10 @@ def get_fitness(num_games, id=None, feedback=False, early_stop_bad=False, early_
     return win_count / num_games, ships_target / (ships_opponent + ships_target + 1)
 
 
-def get_p_null_hypothesis(successes, num_samples):
-    p = scipy.stats.binom(num_samples, 0.5).pmf(successes) / 2
+def get_p_null_hypothesis(successes, num_samples, p_success_h0):
+    p = scipy.stats.binom(num_samples, p_success_h0).pmf(successes) / 2
     for i in range(successes + 1, num_samples + 1):
-        p += scipy.stats.binom(num_samples, 0.5).pmf(i)
+        p += scipy.stats.binom(num_samples, p_success_h0).pmf(i)
     return round(p, 3)
 
 
@@ -211,7 +243,7 @@ def run_reinforcement_learning():
         t = time.time()
 
 
-def run_evolution(use_cache=False, use_seed=False):
+def run_evolution(use_cache=False, use_seed=False, early_stopping=True, four=False, recalculate=False):
     # if use_cache:
     #     with open('pop_cache.p', 'rb') as f:
     #         pop_cache = _pickle.load(f)
@@ -228,6 +260,10 @@ def run_evolution(use_cache=False, use_seed=False):
     #     set_params(ind[0])
     #     pop[i] = (ind[0], get_fitness(fitness_num_games)[0])
     pop = [(copy.copy(base_params), 0.0) for _ in range(pop_size)]
+    
+    for ind in pop[1:]:
+        for i in range(5):
+            mutate(ind[0])
 
     mid_point = round(pop_size / 2)
 
@@ -239,9 +275,13 @@ def run_evolution(use_cache=False, use_seed=False):
             mutate(ind[0])
 
         # fitness
-        for i, ind in enumerate(pop[mid_point:]):
+        if recalculate:
+            start = 0
+        else:
+            start = mid_point
+        for i, ind in enumerate(pop[start:]):
             set_params(ind[0])
-            pop[mid_point + i] = (ind[0], get_fitness(fitness_num_games, early_stop_bad=True, use_seed=use_seed)[0])
+            pop[start + i] = (ind[0], get_fitness(fitness_num_games, early_stop_bad=early_stopping, use_seed=use_seed, four=four)[0])
 
         # sort
         pop.sort(key=lambda x: -x[1])
@@ -265,5 +305,6 @@ def run_evolution(use_cache=False, use_seed=False):
 # set_params(fill_params, 'micro-manager_evolved.py')
 # run_reinforcement_learning()
 # run_evolution(use_seed=False)
-print(get_fitness(200, feedback=True, use_seed=False))
+# run_evolution(use_seed=False, four=True, early_stopping=False, recalculate=True)
+print(get_fitness(200, feedback=True, use_seed=False, four=False))
 # print(map_seeds)
