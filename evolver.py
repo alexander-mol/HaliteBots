@@ -306,5 +306,5 @@ def run_evolution(use_cache=False, use_seed=False, early_stopping=True, four=Fal
 # run_reinforcement_learning()
 # run_evolution(use_seed=False)
 # run_evolution(use_seed=False, four=True, early_stopping=False, recalculate=True)
-print(get_fitness(200, feedback=True, use_seed=False, four=False))
+print(get_fitness(200, feedback=True, use_seed=False, four=True))
 # print(map_seeds)

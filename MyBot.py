@@ -24,12 +24,6 @@ attack_superiority_ratio = 0.843
 rush_mode_proximity = 82.37
 benefit_per_extra_dock_spot = 0.1
 
-if four_players:
-    max_response = 4
-    central_planet_relative_benefit = 0.9
-    safety_check_radius = 17
-    attack_superiority_ratio = 1.2
-
 # micro movement parameters
 fighting_opportunity_merge_distance = 7.3
 general_approach_dist = 3.06
@@ -39,6 +33,12 @@ own_ship_approach_dist = 0.02
 tether_dist = 0
 padding = 0.1
 max_horizon = 8.47
+
+if four_players:
+    max_response = 4
+    central_planet_relative_benefit = 0.9
+    safety_check_radius = 17
+    attack_superiority_ratio = 1.2
 
 # navigation parameters
 angular_step = 5
@@ -396,15 +396,15 @@ while True:
 
     # calculation speed throttling
     if delta_time > 1000:
-        # if motion_ghost_points > 4:
-        #     motion_ghost_points -= 1
-        #     logging.info(f'Decreased motion ghosting to {motion_ghost_points}')
-        if angular_step < 45:
+        if motion_ghost_points > 4:
+            motion_ghost_points -= 1
+            logging.info(f'Throttling: Decreased motion ghosting to {motion_ghost_points}')
+        elif angular_step < 45:
             angular_step += 5
-            logging.info(f'Increased angular step to {angular_step}')
+            logging.info(f'Throttling: Increased angular step to {angular_step}')
         elif use_unassigned_ships:
             use_unassigned_ships = False
-            logging.info(f'Set use_unassigned_ships to FALSE')
+            logging.info(f'Throttling: Set use_unassigned_ships to FALSE')
 
     # Send our set of commands to the Halite engine for this turn
     game.send_command_queue(command_queue)
